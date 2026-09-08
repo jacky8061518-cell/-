@@ -24,10 +24,14 @@ navigation = st.navigation(
             st.Page("pages/3_情報與敘事.py", title="情報與敘事", icon="🧭"),
             st.Page("pages/4_每日簡報.py", title="每日簡報", icon="📰"),
         ],
+        "研究與驗證": [
+            st.Page("pages/7_因子研究.py", title="因子研究", icon="🔬"),
+            st.Page("pages/8_模型Registry.py", title="模型 Registry", icon="🗄️"),
+        ],
         "驗證與維運": [
             st.Page("pages/5_訊號成效.py", title="訊號成效", icon="🎯"),
             st.Page("pages/6_系統健康與回放.py", title="系統健康與回放", icon="🩺"),
-            st.Page("pages/9_研究實驗室.py", title="研究實驗室", icon="🔬"),
+            st.Page("pages/9_研究實驗室.py", title="輪動實驗室", icon="📚"),
         ],
     }
 )
