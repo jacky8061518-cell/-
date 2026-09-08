@@ -60,6 +60,61 @@ streamlit run app.py
 | **系統健康與回放** | Agent 執行狀態、資料新鮮度、依 `decision_id` 重建完整決策鏈 |
 | **研究實驗室** | 原有的輪動研究工作台（資金流雷達、RRG、回測） |
 
+## 研究平台：先證明有 edge，再談部署
+
+`src/quant_platform/` 是這套系統的脊椎。訊號看板是輸出端；**決定一個想法能不能
+動用資金的，是這一層**。
+
+```
+假說 → 因子 → point-in-time 回測 → 成本 → 驗證閘門 → registry → shadow → paper → canary
+```
+
+四個彼此隔離的平面，依賴方向由測試強制（`tests/test_platform_boundaries.py`
+用 AST 分析 import graph）：
+
+```
+data ← research ← trading
+data ← control
+```
+
+Research plane **沒有券商憑證**；Control plane **不接受自然語言指令**
+（連 `prompt`、`instruction` 這類參數名都被測試擋掉）。能被說服的風控不是風控。
+
+跑一次完整研究管線：
+
+```bash
+python scripts/research_pipeline.py --factor momentum --holding 21 --trials 50
+```
+
+它會做：point-in-time 回測 → 成本壓力 ×3 → 執行延遲 +1 日 → 隨機化對照 ×8
+→ 驗證閘門 → 寫入 registry。
+
+### 三個 baseline 的實測結果
+
+台股市值 ≥ 50 億（959 檔）、2013–2026、多空各 10% 分位、21 日持有、扣真實成本
+（來回 82–113 bps，含 0.3% 證交稅與價格級距推導的價差）：
+
+| 因子 | 換手 | 毛/期 | 成本/期 | 淨/期 | 年化 | Sharpe |
+| --- | --- | --- | --- | --- | --- | --- |
+| momentum | 31% | +0.716% | 0.306% | **+0.410%** | +5.04% | **0.47** |
+| mean_reversion | 76% | −0.305% | 0.710% | −1.015% | −11.52% | −2.11 |
+| low_volatility | 20% | −0.671% | 0.192% | −0.863% | −9.88% | −0.73 |
+
+動能是唯一扣成本後為正的，但**沒有通過閘門**：
+
+```
+Sharpe 0.47｜95% bootstrap 區間 [-0.06, 1.08]｜Deflated Sharpe 0.000
+判定：未通過硬性門檻（Deflated Sharpe；Sharpe 信賴區間下界），不得晉級
+```
+
+信賴區間跨越零 —— 這個 edge 在統計上與「沒有 edge」無法區分。
+成本壓力 ×3 後只剩 +0.0006/期，等於損益兩平。
+
+**這是好結果，因為它是真的。** 閘門攔下了一個看起來還行、證據卻不足的策略。
+下一步不是調參數直到通過——那叫過度配適——要改的是假說本身。
+
+細節見 [09 研究平台](docs/autonomous-trading/09-research-platform.md)。
+
 ## 設計文件
 
 完整的架構設計在 [`docs/autonomous-trading/`](docs/autonomous-trading/)：
@@ -75,6 +130,7 @@ streamlit run app.py
 | [06 資料契約](docs/autonomous-trading/06-data-contracts.md) | 所有 schema 與資料品質 SLA |
 | [07 落地路線](docs/autonomous-trading/07-roadmap.md) | 現況、已知限制、下一步 |
 | [08 技術選型](docs/autonomous-trading/08-tech-stack.md) | 依賴取捨、LLM 成本控管、部署 |
+| [09 研究平台](docs/autonomous-trading/09-research-platform.md) | 四平面隔離、point-in-time、成本模型、驗證閘門、model lifecycle |
 
 ## 幾個刻意的設計決定
 
@@ -103,7 +159,7 @@ streamlit run app.py
 - ATR 由波動率近似，停損距離不如真實 ATR 精確
 - 資料尚未有 `ingested_at`／`revision`，point-in-time 是靠「只讀 as_of 之前的列」達成
 - 語意層預設是詞典規則式（永遠可用、不會幻覺，但遠不如 LLM）
-- 尚未跑過 walk-forward 回測驗證
+- 三個 baseline 因子已跑過完整 walk-forward 驗證，**全數未通過閘門**
 
 完整清單與處理順序見 [07 落地路線](docs/autonomous-trading/07-roadmap.md) §2、§3。
 
@@ -291,7 +347,9 @@ filter rejects every sector.
 │   │   └── ui.py                   共用 Streamlit 元件
 │   └── sector_rotation/            研究實驗室的原有模組
 ├── docs/autonomous-trading/        架構設計文件
-├── scripts/daily_update.py
+├── scripts/
+│   ├── daily_update.py
+│   └── research_pipeline.py        假說 → 回測 → 驗證 → registry
 └── tests/
 ```
 
