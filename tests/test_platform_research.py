@@ -21,7 +21,12 @@ from quant_platform.data.pit import (
     TAIWAN_SOURCES,
     assert_no_lookahead,
 )
-from quant_platform.research.backtest import BacktestSpec, run_backtest
+from quant_platform.research.backtest import (
+    BacktestSpec,
+    daily_limit,
+    executable,
+    run_backtest,
+)
 from quant_platform.research.costs import CostModel, tick_size
 from quant_platform.research.factors import FACTORS
 from quant_platform.research.validation import (
@@ -168,6 +173,70 @@ def test_persistent_holdings_are_not_charged_twice(store):
     assert result.turnover.mean() < 1.0
     round_trip_if_fully_rebuilt = result.costs / result.turnover.replace(0, np.nan)
     assert (result.costs <= round_trip_if_fully_rebuilt + 1e-12).all()
+
+
+# --- Price limits ---------------------------------------------------------
+
+
+def test_daily_limit_widened_in_june_2015():
+    """Taiwan moved from 7% to 10% on 2015-06-01; a 2013-2026 backtest needs both."""
+    assert daily_limit(pd.Timestamp("2014-01-02")) == 0.07
+    assert daily_limit(pd.Timestamp("2015-05-29")) == 0.07
+    assert daily_limit(pd.Timestamp("2015-06-01")) == 0.10
+
+
+def _limit_panel():
+    dates = pd.bdate_range("2024-01-01", periods=3)
+    return pd.DataFrame(
+        {
+            "UP": [100.0, 100.0, 110.0],     # limit-up on the entry day
+            "DOWN": [100.0, 100.0, 90.0],    # limit-down on the entry day
+            "CALM": [100.0, 100.0, 101.0],
+        },
+        index=dates,
+    )
+
+
+def test_cannot_buy_a_name_that_is_limit_up():
+    panel = _limit_panel()
+    tradeable, blocked = executable(
+        ["UP", "CALM"], panel.index[2], panel, panel.index, side=+1
+    )
+    assert tradeable == ["CALM"]
+    assert blocked == ["UP"]
+
+
+def test_cannot_short_a_name_that_is_limit_down():
+    panel = _limit_panel()
+    tradeable, blocked = executable(
+        ["DOWN", "CALM"], panel.index[2], panel, panel.index, side=-1
+    )
+    assert tradeable == ["CALM"]
+    assert blocked == ["DOWN"]
+
+
+def test_a_limit_move_only_blocks_the_side_it_actually_blocks():
+    """Limit-up stops a buyer, not a seller. Blocking both would be too harsh."""
+    panel = _limit_panel()
+    buyers, _ = executable(["UP"], panel.index[2], panel, panel.index, side=+1)
+    sellers, _ = executable(["UP"], panel.index[2], panel, panel.index, side=-1)
+    assert buyers == []
+    assert sellers == ["UP"]
+
+
+def test_price_limits_can_be_switched_off_for_comparison(store):
+    """The naive run has to remain available, or the effect cannot be measured."""
+    factor = FACTORS["momentum"]
+    with_limits = run_backtest(
+        store, factor, BacktestSpec(factor_id=factor.id, respect_price_limits=True),
+        benchmark="0050.TW",
+    )
+    without = run_backtest(
+        store, factor, BacktestSpec(factor_id=factor.id, respect_price_limits=False),
+        benchmark="0050.TW",
+    )
+    assert with_limits.blocked_names is not None
+    assert (without.blocked_names == 0).all()
 
 
 # --- Validation statistics ------------------------------------------------

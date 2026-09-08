@@ -11,6 +11,11 @@ trusted.
 each return observation is independent. Overlapping windows inflate the
 apparent sample size several-fold and make every significance test optimistic.
 
+**Only fillable orders.** Names sitting at the daily price limit on the entry
+day are dropped, because there was nothing to trade against. This matters most
+for factors that select on extreme moves, which is precisely where an unfiltered
+backtest looks best.
+
 **Costs on the actual turnover.** A name carried from one period into the next
 is not bought again, so cost is charged on the fraction of the book that
 actually changes, priced at each name's own price level and volatility. Charging
@@ -31,6 +36,58 @@ from .factors import Factor
 
 TRADING_DAYS = 252
 
+# Taiwan's daily price limit widened from 7% to 10% on 2015-06-01. A backtest
+# spanning that date must use both, or it will let trades through in the early
+# years that the exchange would have blocked.
+LIMIT_WIDENED_ON = pd.Timestamp("2015-06-01")
+LIMIT_BEFORE = 0.07
+LIMIT_AFTER = 0.10
+# Closes land a hair inside the band after rounding to the tick, so the test
+# for "at the limit" needs a small tolerance rather than exact equality.
+LIMIT_TOLERANCE = 0.002
+
+
+def daily_limit(date: pd.Timestamp) -> float:
+    return LIMIT_AFTER if pd.Timestamp(date) >= LIMIT_WIDENED_ON else LIMIT_BEFORE
+
+
+def executable(
+    names: list[str],
+    entry_date: pd.Timestamp,
+    prices: pd.DataFrame,
+    sessions: pd.DatetimeIndex,
+    side: int,
+) -> tuple[list[str], list[str]]:
+    """Split names into those that could actually be traded and those that could not.
+
+    A stock sitting at its limit has no offer to lift on the buy side and no bid
+    to hit on the sell side. Assuming a fill at the closing price on such a day
+    is the single most flattering thing a Taiwan backtest can do, and it flatters
+    exactly the strategies that select on extreme daily moves.
+    """
+    position = sessions.get_loc(entry_date)
+    if position == 0:
+        return names, []
+    previous_close = prices.iloc[position - 1]
+    entry_close = prices.loc[entry_date]
+    limit = daily_limit(entry_date) - LIMIT_TOLERANCE
+
+    tradeable, blocked = [], []
+    for name in names:
+        base = previous_close.get(name, np.nan)
+        close = entry_close.get(name, np.nan)
+        if not (np.isfinite(base) and np.isfinite(close) and base > 0):
+            blocked.append(name)
+            continue
+        move = close / base - 1.0
+        # Buying into a limit-up print, or selling/shorting into a limit-down
+        # print, is not an order anyone could have filled.
+        if (side > 0 and move >= limit) or (side < 0 and move <= -limit):
+            blocked.append(name)
+        else:
+            tradeable.append(name)
+    return tradeable, blocked
+
 
 @dataclass(frozen=True)
 class BacktestSpec:
@@ -44,6 +101,7 @@ class BacktestSpec:
     min_names: int = 10
     universe_label: str = "all"
     signal_delay_days: int = 0
+    respect_price_limits: bool = True
     start: pd.Timestamp | None = None
     end: pd.Timestamp | None = None
 
@@ -67,6 +125,7 @@ class BacktestResult:
     turnover: pd.Series
     factor_id: str
     universe_size: int
+    blocked_names: pd.Series | None = None
 
     @property
     def periods_per_year(self) -> float:
@@ -201,6 +260,17 @@ def run_backtest(
         exit_index = entry_index + step
         entry_date, exit_date = sessions[entry_index], sessions[exit_index]
 
+        if spec.respect_price_limits:
+            longs, blocked_long = executable(longs, entry_date, filled, sessions, +1)
+            shorts, blocked_short = executable(shorts, entry_date, filled, sessions, -1)
+            blocked_count = len(blocked_long) + len(blocked_short)
+        else:
+            blocked_count = 0
+
+        if not longs and not shorts:
+            position += step
+            continue
+
         entry = filled.loc[entry_date]
         exit_prices = filled.loc[exit_date]
         volatility = vol.loc[entry_date]
@@ -241,6 +311,7 @@ def run_backtest(
                 "benchmark": benchmark_return,
                 "names": len(held),
                 "turnover": turnover,
+                "blocked": blocked_count,
             }
         )
         position += step
@@ -248,7 +319,7 @@ def run_backtest(
     if not rows:
         empty = pd.Series(dtype="float64")
         return BacktestResult(
-            spec, empty, empty, empty, empty, empty, empty, factor.id, prices.shape[1]
+            spec, empty, empty, empty, empty, empty, empty, factor.id, prices.shape[1], empty
         )
 
     frame = pd.DataFrame(rows).set_index("date")
@@ -262,6 +333,7 @@ def run_backtest(
         turnover=frame["turnover"],
         factor_id=factor.id,
         universe_size=prices.shape[1],
+        blocked_names=frame["blocked"],
     )
 
 
