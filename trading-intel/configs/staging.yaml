@@ -1,0 +1,5 @@
+# Staging mirrors prod wiring against a separate data root.
+data:
+  raw_root: ./data/staging/raw
+  parquet_root: ./data/staging/parquet
+  max_staleness_minutes: 60          # TODO: match prod once confirmed

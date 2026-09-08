@@ -1,0 +1,35 @@
+# Shared defaults. Environment files override individual keys.
+#
+# TODO(owner): every number under `risk:` and `costs:` below is a PLACEHOLDER
+# chosen only to be structurally valid. None of it is a risk decision. Review
+# and set real values before anything reaches staging or prod.
+
+display_tz: Asia/Taipei
+
+data:
+  raw_root: ./data/raw
+  parquet_root: ./data/parquet
+  max_staleness_minutes: 60          # TODO: confirm per data source
+
+risk:
+  max_position_weight: 0.05          # TODO: placeholder, needs sign-off
+  max_sector_weight: 0.25            # TODO: placeholder, needs sign-off
+  max_gross_exposure: 1.0            # TODO: placeholder, needs sign-off
+  max_net_exposure: 0.6              # TODO: placeholder, needs sign-off
+  drawdown_derisk: 0.08              # TODO: placeholder, needs sign-off
+  drawdown_flatten: 0.15             # TODO: placeholder, needs sign-off
+  adv_participation_cap: 0.05        # TODO: placeholder, needs sign-off
+  top5_concentration_cap: 0.4        # TODO: placeholder, needs sign-off
+
+costs:
+  tw_transaction_tax: 0.003          # statutory, not a placeholder
+  tw_daytrade_tax: 0.0015            # statutory, not a placeholder
+  commission_bps: 1.425              # TODO: confirm against broker schedule
+  slippage_bps: 5.0                  # TODO: placeholder, calibrate in Phase 2
+  impact_coefficient: 0.1            # TODO: placeholder, calibrate in Phase 2
+
+agents:
+  daily_token_budget: 1000000        # TODO: placeholder
+  max_calls_per_hour: 200            # TODO: placeholder
+  timeout_seconds: 60.0              # TODO: placeholder
+  max_retries: 2                     # TODO: placeholder

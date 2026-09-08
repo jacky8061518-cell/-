@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trading-intel"
+version = "0.1.0"
+description = "Phase 0 skeleton: temporal discipline, type contracts, and guard rails."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "structlog>=24.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "pre-commit>=3.7",
+    "types-PyYAML>=6.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trading_intel"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
+
+[tool.coverage.run]
+branch = true
+source = ["src/trading_intel"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "N", "UP", "B", "A", "C4", "DTZ", "TID", "RUF", "PD", "ARG", "SIM",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "禁止直接取現在時間，改用 trading_intel.core.clock.utc_now"
+"datetime.datetime.utcnow".msg = "utcnow 回傳 naive datetime，禁止使用"
+"datetime.datetime.today".msg = "禁止使用，改用 trading_intel.core.clock.utc_now"
+"time.time".msg = "禁止使用，改用 trading_intel.core.clock.utc_now"
+
+[tool.ruff.lint.per-file-ignores]
+"src/trading_intel/core/clock.py" = ["TID251"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["trading_intel"]

@@ -1,0 +1,9 @@
+# Local development. Loose limits, small budgets: nothing here trades.
+data:
+  raw_root: ./data/dev/raw
+  parquet_root: ./data/dev/parquet
+  max_staleness_minutes: 1440        # stale local snapshots are fine offline
+
+agents:
+  daily_token_budget: 50000          # TODO: placeholder
+  max_calls_per_hour: 20             # TODO: placeholder

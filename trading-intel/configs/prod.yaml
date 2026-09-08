@@ -1,0 +1,13 @@
+# Production. Every value here is intentionally tighter than base.
+#
+# TODO(owner): these are NOT approved risk numbers. Do not run prod until they
+# have been set deliberately.
+data:
+  raw_root: /var/lib/trading-intel/raw
+  parquet_root: /var/lib/trading-intel/parquet
+  max_staleness_minutes: 15          # TODO: placeholder, needs sign-off
+
+risk:
+  max_position_weight: 0.03          # TODO: placeholder, needs sign-off
+  drawdown_derisk: 0.05              # TODO: placeholder, needs sign-off
+  drawdown_flatten: 0.10             # TODO: placeholder, needs sign-off
