@@ -1,9 +1,8 @@
-"""Frozen data contracts.
+"""凍結的資料契約。
 
-Everything here is ``frozen=True`` and ``extra="forbid"``. Frozen because a
-downstream stage must not be able to quietly mutate an upstream fact — that is
-what makes a replay reproduce the original result. ``extra="forbid"`` because a
-typo in a field name should be a loud error, not a silently dropped value.
+全部設 ``frozen=True`` 與 ``extra="forbid"``。
+frozen 是為了可重現性：下游階段不得偷改上游的事實，重放才會重現原本的結果。
+extra="forbid" 是因為欄位名稱打錯應該大聲報錯，而不是安靜地被丟掉。
 """
 
 from __future__ import annotations
@@ -33,11 +32,11 @@ FROZEN_CONFIG = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=Tru
 
 
 class TemporalModel(BaseModel):
-    """Base for anything that happened at a point in time and was later observed.
+    """所有「在某時點發生、於稍後被觀察到」的資料的基底。
 
-    ``event_time`` is when the fact became true in the world; ``ingest_time`` is
-    when we learned about it. Keeping both is what lets a backtest ask "what did
-    we know at time T" instead of "what is true now".
+    ``event_time`` 是事實在世界上成立的時間；``ingest_time`` 是我們得知的時間。
+    兩者都保留，回測才問得出「在時間 T 我們知道什麼」，而不是「現在什麼是真的」。
+    這是 SPEC 1 的雙時間戳鐵律在型別層的落實。
     """
 
     model_config = FROZEN_CONFIG
@@ -50,14 +49,14 @@ class TemporalModel(BaseModel):
         for name, value in (("event_time", self.event_time), ("ingest_time", self.ingest_time)):
             if value.utcoffset() != UTC.utcoffset(None):
                 raise TemporalIntegrityError(
-                    "timestamps must be expressed in UTC",
+                    "時間戳必須以 UTC 表示",
                     field=name,
                     value=value.isoformat(),
                     model=type(self).__name__,
                 )
         if self.ingest_time < self.event_time - MAX_CLOCK_SKEW:
             raise TemporalIntegrityError(
-                "ingest_time precedes event_time by more than the allowed clock skew",
+                "ingest_time 早於 event_time 且超出允許的時鐘偏移",
                 event_time=self.event_time.isoformat(),
                 ingest_time=self.ingest_time.isoformat(),
                 max_skew_seconds=MAX_CLOCK_SKEW.total_seconds(),
@@ -67,7 +66,7 @@ class TemporalModel(BaseModel):
 
 
 class Instrument(BaseModel):
-    """Reference data, not an event: it has a lifetime, not a timestamp."""
+    """參考資料，不是事件：它有存續期間，沒有單一時間戳。"""
 
     model_config = FROZEN_CONFIG
 
@@ -82,19 +81,22 @@ class Instrument(BaseModel):
     @model_validator(mode="after")
     def _validate_lifetime(self) -> Self:
         if self.delisted_date is not None and self.delisted_date < self.listed_date:
-            msg = "delisted_date cannot precede listed_date"
+            msg = "delisted_date 不得早於 listed_date"
             raise ValueError(msg)
         return self
 
     def is_active_on(self, d: date) -> bool:
-        """Survivorship-bias guard: universes must be built through this."""
+        """存活者偏誤的防線：宇宙的建構必須經過這個判斷（SPEC 3.2）。"""
         if d < self.listed_date:
             return False
         return self.delisted_date is None or d <= self.delisted_date
 
 
 class Bar(TemporalModel):
-    """One OHLCV bar, stored unadjusted with an independent adjustment factor."""
+    """一根 OHLCV bar，以未調整原始價儲存，調整因子獨立存放。
+
+    SPEC 3.2 明令禁止直接存調整後價格：新的企業行動會讓歷史調整價全部改變。
+    """
 
     entity_id: EntityId
     open: Decimal
@@ -109,7 +111,7 @@ class Bar(TemporalModel):
     def _validate_ohlc(self) -> Self:
         if self.low > min(self.open, self.close) or max(self.open, self.close) > self.high:
             msg = (
-                f"OHLC ordering violated: low={self.low} open={self.open} "
+                f"OHLC 順序違規：low={self.low} open={self.open} "
                 f"close={self.close} high={self.high}"
             )
             raise ValueError(msg)
@@ -117,7 +119,7 @@ class Bar(TemporalModel):
 
 
 class Document(TemporalModel):
-    """A piece of text evidence, with provenance and a prompt-injection flag."""
+    """一份文本證據，含來源出處與提示注入偵測旗標（SPEC 4.3）。"""
 
     doc_id: EvidenceId
     doc_type: DocType
@@ -130,7 +132,7 @@ class Document(TemporalModel):
 
 
 class FeatureVector(TemporalModel):
-    """Features plus the version of each producer, so a drift can be traced."""
+    """特徵值與各自的產生者版本，讓漂移可以被追溯。"""
 
     entity_id: EntityId
     asof: AwareDatetime
@@ -141,13 +143,13 @@ class FeatureVector(TemporalModel):
     def _validate_versions(self) -> Self:
         missing = sorted(set(self.values) - set(self.feature_versions))
         if missing:
-            msg = f"missing feature_versions for: {', '.join(missing)}"
+            msg = f"下列特徵缺少 feature_versions：{', '.join(missing)}"
             raise ValueError(msg)
         return self
 
 
 class Signal(TemporalModel):
-    """A directional view with an explicit expiry and an explicit kill condition."""
+    """帶明確保存期限與明確失效條件的方向性觀點。"""
 
     signal_id: SignalId
     entity_id: EntityId
@@ -155,8 +157,8 @@ class Signal(TemporalModel):
     score: float = Field(ge=-1, le=1)
     confidence: float = Field(ge=0, le=1)
     half_life_days: float = Field(gt=0)
-    # A signal you cannot say would be wrong is not a signal. min_length makes
-    # that a type-system responsibility rather than a matter of discipline.
+    # 說不出什麼情況代表自己錯了的判斷，不算訊號。用 min_length 把這件事
+    # 變成型別系統的責任，而不是紀律問題。
     invalidation_condition: str = Field(min_length=10)
     horizon: Horizon
     evidence_ids: tuple[EvidenceId, ...]
@@ -165,7 +167,7 @@ class Signal(TemporalModel):
 
 
 class OrderIntent(TemporalModel):
-    """What we would like to hold, before risk has had its say."""
+    """我們想要持有的部位，在風控表態之前。"""
 
     entity_id: EntityId
     direction: Direction
@@ -176,7 +178,7 @@ class OrderIntent(TemporalModel):
 
 
 class RiskVerdict(TemporalModel):
-    """Risk's answer to an intent. A rejection must name what it breached."""
+    """風控對一筆意圖的裁決。否決時必須指名違反了什麼。"""
 
     intent_hash: str
     approved: bool
@@ -187,13 +189,13 @@ class RiskVerdict(TemporalModel):
     @model_validator(mode="after")
     def _validate_verdict(self) -> Self:
         if not self.approved and not self.breached_limits:
-            msg = "a rejected intent must list at least one breached limit"
+            msg = "遭否決的意圖必須至少列出一項違反的限額"
             raise ValueError(msg)
         return self
 
 
 class DataQualityAlert(TemporalModel):
-    """A failed quality check and the trading state it forces."""
+    """一次失敗的品質檢查，以及它強制設定的交易狀態（SPEC 3.3）。"""
 
     entity_id: EntityId | None
     check: QualityCheck
@@ -202,11 +204,16 @@ class DataQualityAlert(TemporalModel):
     resulting_state: TradingState
 
 
+#: SPEC 第 11 節 Phase 0 以 MarketEvent 與 NewsEvent 稱呼下列兩個型別。
+#: 這裡保留較精確的實作名稱，並提供 SPEC 用語作為別名，兩者指向同一個類別。
+MarketEvent = Bar
+NewsEvent = Document
+
 T = TypeVar("T", bound=BaseModel)
 
 
 class AgentOutput[T: BaseModel](BaseModel):
-    """The contract every LLM agent must satisfy. Used from Phase 3; fixed now."""
+    """每個 LLM agent 都必須滿足的契約（SPEC 4.1）。Phase 3 才使用，契約現在就定死。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -221,9 +228,9 @@ class AgentOutput[T: BaseModel](BaseModel):
     @model_validator(mode="after")
     def _validate_abstain(self) -> Self:
         if self.abstain and self.payload is not None:
-            msg = "an abstaining agent must not return a payload"
+            msg = "棄權的 agent 不得回傳 payload"
             raise ValueError(msg)
         if not self.abstain and self.payload is None:
-            msg = "a non-abstaining agent must return a payload"
+            msg = "未棄權的 agent 必須回傳 payload"
             raise ValueError(msg)
         return self

@@ -1,4 +1,4 @@
-"""The sandbox must actually cut the network, and must put it back afterwards."""
+"""沙箱必須真的切斷網路，而且離開後必須完整還原。"""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from trading_intel.core.sandbox import backtest_mode, no_network
 
 
 def test_create_connection_is_blocked() -> None:
+    """對應 CLAUDE.md 第 3 條：回測期間禁止任何網路呼叫。"""
     with no_network(), pytest.raises(NetworkAccessDenied) as excinfo:
         socket.create_connection(("example.com", 80), timeout=0.1)
     assert "create_connection" in str(excinfo.value)
@@ -36,7 +37,7 @@ def test_originals_are_restored_on_exit() -> None:
     assert socket.socket is original_socket
     assert socket.create_connection is original_create
     assert getattr(ssl, "wrap_socket", None) is original_wrap
-    # And a real socket can be constructed again.
+    # 而且可以再次建立真正的 socket。
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.close()
 
@@ -55,7 +56,7 @@ def test_nested_use_does_not_restore_early() -> None:
         with no_network():  # noqa: SIM117  (the nesting is the thing under test)
             with pytest.raises(NetworkAccessDenied):
                 socket.socket()
-        # The inner block exited; the outer one must still be blocking.
+        # 內層區塊已離開，外層必須仍在封鎖狀態。
         with pytest.raises(NetworkAccessDenied):
             socket.socket()
 
@@ -71,4 +72,4 @@ def test_backtest_mode_blocks_the_network_and_freezes_the_clock() -> None:
         assert clock.now() == asof
         with pytest.raises(NetworkAccessDenied) as excinfo:
             socket.create_connection(("example.com", 443), timeout=0.1)
-    assert "disabled inside this sandbox" in str(excinfo.value)
+    assert "沙箱內禁止" in str(excinfo.value)

@@ -1,8 +1,9 @@
-"""structlog wiring.
+"""structlog 接線。
 
-Every log line carries a UTC timestamp taken from the active clock, so lines
-emitted inside a backtest are stamped with simulated time and line up with the
-events they describe.
+每一行日誌的 UTC 時間戳都取自當前生效的時鐘，因此回測內產生的日誌會被標上
+模擬時間，與它所描述的事件對得起來。
+
+dev 輸出彩色文字，其餘環境輸出 JSON（SPEC 2）。
 """
 
 from __future__ import annotations
@@ -19,17 +20,17 @@ _CORRELATION_KEY = "correlation_id"
 
 
 def _add_timestamp(
-    logger: Any,  # noqa: ARG001  (structlog processor signature)
+    logger: Any,  # noqa: ARG001  (簽章由 structlog processor 規定)
     method_name: str,  # noqa: ARG001
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
-    """Stamp with the active clock, never with wall time directly."""
+    """一律以當前生效的時鐘蓋時間戳，絕不直接取牆上時間。"""
     event_dict["timestamp"] = utc_now().isoformat()
     return event_dict
 
 
 def configure_logging(env: str, level: str = "INFO") -> None:
-    """Human-readable output in dev, JSON everywhere else."""
+    """dev 環境輸出人眼可讀的文字，其他環境輸出 JSON。"""
     renderer: structlog.types.Processor = (
         structlog.dev.ConsoleRenderer(colors=True)
         if env == "dev"
@@ -53,11 +54,11 @@ def configure_logging(env: str, level: str = "INFO") -> None:
 
 
 def bind_correlation(cid: CorrelationId) -> None:
-    """Attach ``cid`` to every log line emitted in this context."""
+    """把 ``cid`` 附加到此 context 內產生的每一行日誌。"""
     structlog.contextvars.bind_contextvars(**{_CORRELATION_KEY: str(cid)})
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
-    """Bind the module name explicitly; the print-based factory has no name of its own."""
+    """明確綁定模組名稱；以 print 為底的 factory 本身沒有名字。"""
     logger: structlog.stdlib.BoundLogger = structlog.get_logger(name).bind(logger=name)
     return logger

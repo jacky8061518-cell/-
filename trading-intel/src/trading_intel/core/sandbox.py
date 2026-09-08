@@ -1,8 +1,7 @@
-"""Guard rails that make a whole class of bugs impossible rather than unlikely.
+"""把一整類 bug 變成不可能發生，而不只是不太可能發生的防護。
 
-A backtest that can reach the network can leak the future into the past. So
-instead of asking every data adapter to behave, we cut the socket layer out from
-under them for the duration of the run.
+能連上網路的回測，就能把未來洩漏進過去。與其要求每一個資料轉接器自律，
+不如在回測期間直接把 socket 層抽掉。對應 CLAUDE.md 第 3 條。
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ _PATCH_TARGETS: tuple[tuple[object, str], ...] = (
 def _denied(target: str) -> Any:
     def _raise(*args: Any, **kwargs: Any) -> Any:
         raise NetworkAccessDenied(
-            f"network access via {target} is disabled inside this sandbox",
+            f"沙箱內禁止透過 {target} 存取網路",
             target=target,
             call=f"args={args!r} kwargs={kwargs!r}",
         )
@@ -38,11 +37,10 @@ def _denied(target: str) -> Any:
 
 @contextmanager
 def no_network() -> Iterator[None]:
-    """Block outbound sockets for the duration of the block.
+    """在區塊期間阻斷對外連線。
 
-    Nesting is safe: each level saves the attributes it found on entry and puts
-    exactly those back on exit, so an inner block cannot restore networking for
-    an outer one.
+    巢狀使用是安全的：每一層各自記下進入時看到的屬性，離開時只還原自己那一份，
+    因此內層區塊不會替外層提前解除封鎖。
     """
     saved: list[tuple[object, str, Any]] = []
     for module, attr in _PATCH_TARGETS:
@@ -60,10 +58,10 @@ def no_network() -> Iterator[None]:
 
 @contextmanager
 def backtest_mode(asof: datetime) -> Iterator[SimulatedClock]:
-    """Freeze the clock at ``asof`` and cut the network.
+    """把時鐘凍結在 ``asof`` 並切斷網路。
 
-    The Phase 2 backtest engine runs inside this and nowhere else, so "did we
-    remember to sandbox this run" stops being a question anyone has to ask.
+    Phase 2 的回測引擎一律在這個 context 內執行，如此「這次有沒有記得包沙箱」
+    就不再是任何人需要記住的事。
     """
     clock = SimulatedClock(asof)
     with no_network(), use_clock(clock):

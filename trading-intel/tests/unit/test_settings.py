@@ -1,3 +1,5 @@
+"""分層設定的載入順序與錯誤訊息。"""
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -54,7 +56,7 @@ def config_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_repository_configs_load(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The checked-in configs/ must be valid, not just the fixtures."""
+    """簽入 repo 的 configs/ 本身必須合法，不能只有測試 fixture 合法。"""
     monkeypatch.delenv("TI_CONFIG_DIR", raising=False)
     settings = load_settings("dev")
     assert isinstance(settings, Settings)
@@ -72,9 +74,9 @@ def test_every_shipped_environment_loads(env: str, monkeypatch: pytest.MonkeyPat
 def test_environment_file_overrides_base(config_root: Path) -> None:
     assert config_root.exists()
     settings = load_settings("dev")
-    assert settings.data.max_staleness_minutes == 1440  # from dev.yaml
-    assert settings.agents.max_calls_per_hour == 20  # from dev.yaml
-    assert settings.agents.daily_token_budget == 1000000  # untouched, from base.yaml
+    assert settings.data.max_staleness_minutes == 1440  # 來自 dev.yaml
+    assert settings.agents.max_calls_per_hour == 20  # 來自 dev.yaml
+    assert settings.agents.daily_token_budget == 1000000  # 未被覆寫，來自 base.yaml
 
 
 def test_env_vars_outrank_yaml(config_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,7 +102,7 @@ def test_load_settings_is_cached(config_root: Path) -> None:
 
 def test_unknown_environment_is_rejected(config_root: Path) -> None:
     assert config_root.exists()
-    with pytest.raises(ConfigError, match="unknown environment"):
+    with pytest.raises(ConfigError, match="未知的環境名稱"):
         load_settings("qa")
 
 
@@ -150,7 +152,7 @@ def test_unknown_key_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 def test_non_mapping_config_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "base.yaml").write_text("- just\n- a\n- list\n", encoding="utf-8")
     monkeypatch.setenv("TI_CONFIG_DIR", str(tmp_path))
-    with pytest.raises(ConfigError, match="must contain a mapping"):
+    with pytest.raises(ConfigError, match="內容必須是一個對應表"):
         load_settings("dev")
 
 

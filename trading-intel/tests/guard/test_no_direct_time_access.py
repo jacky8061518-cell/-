@@ -1,9 +1,8 @@
-"""Nobody may read the wall clock except ``core/clock.py``.
+"""除了 ``core/clock.py`` 以外，任何人都不得讀取牆上時鐘。
 
-``ruff``'s banned-api rule covers imports, but a call reached through an alias
-(``import datetime as dt; dt.datetime.now()``) slips past it. This walks the AST
-of every source file instead, so the rule holds no matter how the call is
-spelled.
+``ruff`` 的 banned-api 規則走 import graph，抓得到直接寫法，
+但抓不到透過別名繞過去的呼叫（``import datetime as dt; dt.datetime.now()``）。
+本測試改走每個原始檔的 AST，因此不論怎麼拼寫，規則都成立。
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from pathlib import Path
 
 SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
 
-#: The only file allowed to touch the real clock.
+#: 唯一允許碰真實時鐘的檔案。
 ALLOWED = {SRC_ROOT / "trading_intel" / "core" / "clock.py"}
 
 BANNED_ATTRIBUTES = {"now", "utcnow", "today"}
@@ -66,13 +65,13 @@ def test_no_direct_time_access_outside_clock() -> None:
             continue
         offenders.extend(_violations(path))
     assert not offenders, (
-        "direct wall-clock access is banned outside core/clock.py; "
-        "use trading_intel.core.clock.utc_now instead:\n  " + "\n  ".join(offenders)
+        "core/clock.py 以外禁止直接存取牆上時鐘，"
+        "請改用 trading_intel.core.clock.utc_now：\n  " + "\n  ".join(offenders)
     )
 
 
 def test_guard_detects_a_planted_violation(tmp_path: Path) -> None:
-    """The guard must actually fire — a green test that cannot fail is worthless."""
+    """守門測試本身必須真的會失敗；永遠綠燈的測試沒有價值。"""
     planted = tmp_path / "offender.py"
     planted.write_text(
         "import datetime as dt\nimport time\n\n\n"
@@ -90,6 +89,5 @@ def test_guard_detects_a_planted_violation(tmp_path: Path) -> None:
 def test_clock_module_is_the_only_exemption() -> None:
     clock_module = SRC_ROOT / "trading_intel" / "core" / "clock.py"
     assert list(ALLOWED) == [clock_module]
-    # clock.py really does contain what everyone else is forbidden from doing,
-    # so the exemption is load-bearing rather than decorative.
+    # clock.py 內確實有其他人被禁止做的事，因此這項豁免是有作用的，不是裝飾。
     assert _violations(clock_module)

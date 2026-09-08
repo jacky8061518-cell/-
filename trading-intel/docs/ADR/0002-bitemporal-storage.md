@@ -1,74 +1,63 @@
-# ADR 0002 — Bitemporal facts: `event_time` and `ingest_time`
+# ADR 0002 — 雙時間戳：`event_time` 與 `ingest_time`
 
-- **Status**: Accepted
-- **Date**: 2026-09-08
-- **Phase**: 0 (enforced in `TemporalModel`; storage layer is Phase 1)
+- **狀態**：已採納
+- **日期**：2026-09-08
+- **階段**：Phase 0（於 `TemporalModel` 強制；儲存層屬 Phase 1）
 
-## Context
+## 背景
 
-Every fact has two timestamps that are routinely conflated:
+每個事實都有兩個時間戳，而它們經常被混為一談：
 
-- **`event_time`** — when the fact became true in the world. An earnings release
-  is dated to the moment it was published.
-- **`ingest_time`** — when *we* learned it. Our scraper may have picked it up
-  four hours later; a restated figure may arrive three weeks later.
+- **`event_time`** — 事實在世界上成立的時間。財報以其發布的那一刻為準。
+- **`ingest_time`** — *我們*得知的時間。爬蟲可能晚四小時才抓到；
+  重編後的數字可能三週後才送達。
 
-A single-timestamp store forces a choice, and both choices are wrong:
+單一時間戳的儲存體逼你二選一，而兩個選擇都是錯的：
 
-- Store only `event_time`, and a backtest at date T sees data that had not
-  reached us at T. That is lookahead bias, and it is invisible: the backtest
-  simply looks better than reality.
-- Store only `ingest_time`, and every fact is misdated. Any analysis keyed to
-  when things actually happened becomes noise.
+- 只存 `event_time`，日期 T 的回測就會看到當時還沒送達我們手上的資料。
+  這就是前視偏誤，而且它是隱形的：回測只會單純地比現實好看。
+- 只存 `ingest_time`，則每個事實的日期都是錯的。任何以「事情何時真的發生」
+  為軸的分析都變成雜訊。
 
-Restatements make it worse. A revenue figure published, corrected, and corrected
-again is three facts with one `event_time` and three `ingest_times`. A
-single-timestamp store silently overwrites, destroying the record of what we
-believed at the time.
+財報重編讓情況更糟。一個營收數字經過發布、更正、再更正，是三個事實、
+一個 `event_time`、三個 `ingest_time`。單一時間戳的儲存體會安靜地覆寫，
+摧毀「我們當時相信什麼」的紀錄。
 
-## Decision
+## 決策
 
-Every event-shaped model inherits `TemporalModel`, which requires both
-timestamps, requires both to be UTC, and rejects `ingest_time` more than
-`MAX_CLOCK_SKEW` (5s) before `event_time`. Facts are append-only: a correction
-is a new row, never an update.
+所有事件形狀的模型都繼承 `TemporalModel`，它要求兩個時間戳皆存在、皆為 UTC，
+並拒絕 `ingest_time` 早於 `event_time` 超過 `MAX_CLOCK_SKEW`（5 秒）的資料。
+事實是唯讀追加的：更正是一筆新資料列，絕不是更新。
 
-## Rationale
+## 理由
 
-The point-in-time query — "what did we know about X as of T" — is
-`WHERE event_time <= T AND ingest_time <= T`, keeping the latest row per key.
-Making that expressible is the entire justification.
+point-in-time 查詢——「在時間 T 我們對 X 知道什麼」——寫成
+`WHERE event_time <= T AND ingest_time <= T`，再取每個鍵的最新一列。
+讓這句話寫得出來，就是這個設計的全部理由，也是 SPEC 1 雙時間戳鐵律的來源。
 
-The 5-second skew tolerance exists because `event_time` often comes from a
-publisher's clock and `ingest_time` from ours. Zero tolerance would reject
-legitimate data over NTP drift; a generous tolerance would let a genuinely
-inverted pipeline through. Five seconds is small enough that no real ingest lag
-fits inside it.
+容忍 5 秒偏移是因為 `event_time` 常來自發布方的時鐘，`ingest_time` 來自我們的時鐘。
+零容忍會因 NTP 漂移而拒收合法資料；過大的容忍則會放行真正時序顛倒的管線。
+五秒小到不會有任何真實的擷取延遲塞得進去。
 
-## Consequences
+## 後果
 
-**Accepted costs**
+**接受的代價**
 
-- **Storage grows with revisions, not with facts.** Each correction is a new
-  row. For fundamentals with heavy restatement this is a real multiple, not a
-  rounding error.
-- **Every query is more expensive.** Two predicates instead of one, and a
-  latest-per-key selection on top. Expect a composite index on
-  `(entity_id, event_time, ingest_time)` and expect point-in-time reads to cost
-  meaningfully more than "current value" reads.
-- **Every query is more complicated,** and a forgotten `ingest_time` predicate
-  reintroduces exactly the lookahead the design exists to prevent. Phase 1 must
-  put point-in-time reads behind a helper rather than leaving raw SQL to
-  discipline.
-- Live trading pays this cost for no direct benefit — it always wants the
-  latest. The cost is accepted so that live and backtest read through one path;
-  two paths would eventually disagree, and the disagreement would be discovered
-  in production.
+- **儲存空間隨修訂次數成長，而非隨事實數量成長。** 每次更正都是一筆新資料列。
+  對重編頻繁的基本面資料而言，這是實質的倍數，不是可忽略的零頭。
+- **每一次查詢都更貴。** 兩個條件而非一個，之上還要選出每個鍵的最新列。
+  預期需要 `(entity_id, event_time, ingest_time)` 的複合索引，
+  且 point-in-time 讀取會明顯比「取最新值」貴。
+- **每一次查詢都更複雜**，而漏掉 `ingest_time` 條件就等於把這個設計要防的前視
+  偏誤請回來。Phase 1 必須把 point-in-time 讀取包成 helper，
+  而不是留一堆裸 SQL 靠紀律把關（CLAUDE.md 第 2 條）。
+- 實盤交易付出這些代價卻沒有直接好處——它永遠只要最新值。
+  之所以仍要付，是為了讓實盤與回測走同一條讀取路徑；
+  兩條路徑最終一定會不一致，而那個不一致會在正式環境被發現。
 
-## Alternatives rejected
+## 已否決的替代方案
 
-- **Single `event_time` plus a data-availability lag constant.** A fixed lag is
-  a guess, it varies per source, and it cannot represent restatements at all.
-- **Snapshot the whole database nightly.** Storage cost is far worse, resolution
-  is a day, and it answers "what did the tables look like" rather than "what did
-  we know".
+- **單一 `event_time` 加一個資料可得性延遲常數。** 固定延遲是用猜的，
+  每個來源都不同，而且完全無法表達財報重編。
+- **每晚整庫快照。** 儲存成本差得多，解析度只到日，
+  而且它回答的是「資料表長什麼樣」而不是「我們知道什麼」。

@@ -1,68 +1,56 @@
-# ADR 0001 — Event-driven architecture over batch scheduling
+# ADR 0001 — 選擇事件驅動而非批次排程
 
-- **Status**: Accepted
-- **Date**: 2026-09-08
-- **Phase**: 0 (contracts only; no bus implementation yet)
+- **狀態**：已採納
+- **日期**：2026-09-08
+- **階段**：Phase 0（只定契約，尚未實作匯流排）
 
-## Context
+## 背景
 
-The system ingests prices, filings, and news, derives features and signals, and
-turns those into order intents. Two shapes were available:
+系統要吃行情、公告與新聞，推導出特徵與訊號，再轉成下單意圖。可行的形狀有兩種：
 
-1. **Batch schedule** — a cron chain: fetch at 18:00, compute features at 18:30,
-   score at 19:00, publish at 19:15.
-2. **Event-driven** — each fact enters as an event and each stage reacts.
+1. **批次排程** — 一條 cron 鏈：18:00 抓資料、18:30 算特徵、19:00 評分、19:15 發布。
+2. **事件驅動** — 每個事實以事件進入系統，每一層對事件做出反應。
 
-Batch is much simpler to build and much simpler to reason about at 3am. It is
-also what most research code starts as, and there is real cost in walking away
-from that.
+批次做起來簡單得多，凌晨三點要看懂它也簡單得多。多數研究程式碼都是這樣開始的，
+放棄它是有真實代價的。
 
-## Decision
+## 決策
 
-Facts move through the system as immutable events in an `EventEnvelope`, and
-every stage is a function from events to events.
+事實以不可變事件的形式在系統中流動，包在 `EventEnvelope` 內；
+每一層都是「事件進、事件出」的函式。
 
-## Rationale
+## 理由
 
-The deciding factor is not throughput, it is **replay**.
+決定性因素不是吞吐量，而是**重放**。
 
-- A batch pipeline's state is "whatever the last run left in the tables". You
-  cannot ask it what it believed on 2020-03-19 without rebuilding the database
-  as of that date, which in practice means you never ask.
-- An event log can be replayed. Combined with deterministic ids (ADR 0003's
-  sibling concern — see `core/ids.py`) and a frozen contract set, replaying the
-  same events reproduces the same signals, byte for byte. That property is what
-  makes a backtest an argument rather than an anecdote.
-- Latency-sensitive paths (a halt, a data-quality alert that must flip an entity
-  to `NO_TRADE`) do not fit a nightly cadence. In batch they become special
-  cases; in an event model they are ordinary events.
-- Stage isolation: a broken news parser stops producing `Document` events. It
-  does not corrupt the price path, because the price path never reads its
-  tables.
+- 批次管線的狀態就是「上一次跑完留在資料表裡的東西」。你無法問它 2020-03-19 當天
+  相信什麼，除非把整個資料庫重建到那一天為止——實務上這代表你根本不會去問。
+- 事件日誌可以重放。搭配決定性 id（見 `core/ids.py`）與凍結的契約集合，
+  重放同一批事件會產生位元層級相同的訊號。這個性質正是 SPEC 1 的可重現性鐵律，
+  也是回測能成為論證而非軼事的原因。
+- 對延遲敏感的路徑（暫停交易、必須把標的翻成 `NO_TRADE` 的品質告警）
+  塞不進每晚一次的節奏。在批次裡它們是特例，在事件模型裡它們只是普通事件。
+- 分層隔離：新聞解析器壞掉時，它只是不再產出 `Document` 事件，
+  不會污染價格路徑，因為價格路徑從不讀它的資料表。
 
-## Consequences
+## 後果
 
-**Accepted costs**
+**接受的代價**
 
-- Ordering and duplicate delivery are now our problem. Mitigated by
-  `idempotency_key`, derived from a canonical hash of payload content, so a
-  redelivered fact is a no-op rather than a double count.
-- Debugging is harder: there is no single table to `SELECT *` from. Mitigated by
-  `correlation_id` threaded through the envelope and injected into every log
-  line by `core/logging.py`.
-- Eventual consistency between stages must be tolerated by anything that reads
-  across them.
+- 順序與重複投遞成為我們的問題。緩解方式是 `idempotency_key`，
+  由 payload 內容的正規化雜湊推導而來，因此重送的事實是無動作而非重複計算。
+- 除錯變難：沒有單一資料表可以 `SELECT *`。緩解方式是貫穿信封的 `correlation_id`，
+  並由 `core/logging.py` 注入每一行日誌。
+- 跨層讀取者必須容忍階段之間的最終一致性。
 
-**Deferred to later phases**
+**延後到後續階段**
 
-- No broker is chosen here. Phase 1 may run the "bus" as an in-process queue,
-  and the envelope contract is deliberately transport-agnostic so that choice
-  stays cheap.
+- 這裡不挑 broker。Phase 1 的「匯流排」可以只是行程內佇列；
+  信封契約刻意與傳輸層無關，讓這個選擇維持廉價（SPEC 2 建議 Redis Streams）。
 
-## Alternatives rejected
+## 已否決的替代方案
 
-- **Batch with snapshot tables per run.** Gets partway to replay, but the
-  snapshot is of derived state, not of inputs, so a bug fix cannot be replayed
-  against history — only re-derived by the same buggy code.
-- **Streaming framework (Flink/Beam) from day one.** Operationally heavy for a
-  system that has not yet proven a single signal.
+- **批次加每次執行的快照表。** 有部分重放能力，但快照的是推導後的狀態而非輸入，
+  因此修好 bug 後無法對歷史重放，只能用同一份有 bug 的程式碼重算一次。
+- **一開始就上串流框架（Flink/Beam）。** 對一個連單一訊號都還沒證明的系統來說，
+  維運負擔過重。

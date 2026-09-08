@@ -1,3 +1,8 @@
+"""事件信封與內容雜湊。
+
+idempotency_key 由內容推導，重放同一個事實時下游可據此去重。
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -37,7 +42,7 @@ class _A(BaseModel):
 
 
 class _B(BaseModel):
-    """Same fields as ``_A``, declared in the opposite order."""
+    """欄位與 ``_A`` 相同，但宣告順序相反。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     beta: str
@@ -81,7 +86,7 @@ def test_identical_payloads_share_an_idempotency_key() -> None:
     second = wrap(make_bar(), event_type="market.bar")
     assert first.idempotency_key == second.idempotency_key
     assert first.event_id == second.event_id
-    # ...but tracing ids differ, because they are per-delivery.
+    # ……但追蹤用的 id 不同，因為那是每次投遞各自產生的。
     assert first.correlation_id != second.correlation_id
 
 

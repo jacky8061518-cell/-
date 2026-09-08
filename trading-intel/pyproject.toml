@@ -58,6 +58,10 @@ src = ["src", "tests"]
 select = [
     "E", "F", "I", "N", "UP", "B", "A", "C4", "DTZ", "TID", "RUF", "PD", "ARG", "SIM",
 ]
+# RUF001-003 會把中文全形標點（，。：（）等）判為「易混淆字元」。
+# 本專案依 CLAUDE.md 規定以繁體中文撰寫註解與文件，這三條規則對每一句中文都誤報，
+# 因此關閉。這是文件語言的取捨，不涉及任何型別或正確性檢查的放寬。
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

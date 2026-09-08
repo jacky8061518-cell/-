@@ -1,8 +1,7 @@
-"""Ids must be a pure function of their inputs.
+"""id 必須是輸入的純函數。
 
-The expected values below are hard-coded rather than recomputed. If a future
-change to the hashing scheme silently altered them, every previously stored
-signal id would stop matching — so a deliberate break here is the point.
+以下期望值刻意硬編碼而非重算。若未來雜湊方式被無聲改動，
+所有已存放的訊號 id 都會對不起來——所以這裡故意設計成會壞掉。
 """
 
 from __future__ import annotations
@@ -42,7 +41,7 @@ def test_entity_id_strips_and_upcases() -> None:
 
 
 def test_entity_id_rejects_a_blank_symbol() -> None:
-    with pytest.raises(ValueError, match="blank"):
+    with pytest.raises(ValueError, match="不得為空白"):
         make_entity_id(Market.TW, "   ")
 
 
@@ -54,7 +53,7 @@ def test_evidence_id_is_content_addressed() -> None:
 
 
 def test_evidence_id_separates_source_from_payload() -> None:
-    # Without a separator, ("ab", b"c") and ("a", b"bc") would collide.
+    # 若沒有分隔字元，("ab", b"c") 與 ("a", b"bc") 會碰撞。
     assert make_evidence_id("ab", b"c") != make_evidence_id("a", b"bc")
 
 
@@ -88,7 +87,7 @@ def test_signal_id_rejects_naive_asof() -> None:
 
 
 def test_ids_are_stable_across_separate_processes() -> None:
-    """PYTHONHASHSEED randomisation must not leak into any id."""
+    """PYTHONHASHSEED 的隨機化不得洩漏到任何 id 裡。"""
     script = (
         "from datetime import datetime, UTC;"
         "from trading_intel.core.enums import Market;"

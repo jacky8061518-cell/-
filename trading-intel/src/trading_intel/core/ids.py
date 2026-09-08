@@ -1,10 +1,8 @@
-"""Deterministic identifiers.
+"""決定性識別碼。
 
-Every id is a pure function of its inputs. If ids were random, replaying the
-same event stream would produce different signal ids and reproducibility — the
-whole point of the bitemporal design — would be gone. ``uuid4`` is therefore
-allowed only for correlation ids, which are pure tracing metadata and never
-enter signal content.
+每個 id 都是輸入的純函數。若 id 帶隨機性，同一份事件流重放兩次就會產生不同的
+訊號 id，雙時間戳設計換來的可重現性也就沒了（SPEC 1）。因此 ``uuid4`` 只允許
+用於 correlation id：那是純粹的追蹤中繼資料，不會進入訊號內容。
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ SignalId = NewType("SignalId", str)
 CorrelationId = NewType("CorrelationId", str)
 
 _HASH_WIDTH = 16
-_SEP = b"\x1f"  # ASCII unit separator: cannot appear in the fields we join
+_SEP = b"\x1f"  # ASCII unit separator：不會出現在被串接的欄位內容中
 
 
 def _digest(*parts: bytes, width: int = _HASH_WIDTH) -> str:
@@ -31,21 +29,21 @@ def _digest(*parts: bytes, width: int = _HASH_WIDTH) -> str:
 
 
 def make_entity_id(market: Market, local_symbol: str) -> EntityId:
-    """``TW:2330`` / ``US:NVDA``. The symbol is stripped and upper-cased first."""
+    """格式為 ``TW:2330`` 或 ``US:NVDA``，代號先做 strip 與 upper。"""
     symbol = local_symbol.strip().upper()
     if not symbol:
-        msg = "local_symbol must not be blank"
+        msg = "local_symbol 不得為空白"
         raise ValueError(msg)
     return EntityId(f"{market.value}:{symbol}")
 
 
 def make_evidence_id(source: str, payload: bytes) -> EvidenceId:
-    """Content address for a document, so re-ingesting it collapses to one id."""
+    """文件的內容位址，同一份文件重複收到會收斂到同一個 id。"""
     return EvidenceId(_digest(source.encode("utf-8"), payload))
 
 
 def make_signal_id(entity_id: EntityId, model_version: str, asof: datetime) -> SignalId:
-    """Deterministic: the same (entity, model version, asof) always maps to one id."""
+    """決定性雜湊：同一組（標的、模型版本、asof）永遠對應同一個 id。"""
     return SignalId(
         _digest(
             str(entity_id).encode("utf-8"),
@@ -56,5 +54,5 @@ def make_signal_id(entity_id: EntityId, model_version: str, asof: datetime) -> S
 
 
 def new_correlation_id() -> CorrelationId:
-    """Random by design — tracing only, never part of a signal's identity."""
+    """刻意採用隨機值：純追蹤用途，不構成訊號身分的一部分。"""
     return CorrelationId(uuid.uuid4().hex)

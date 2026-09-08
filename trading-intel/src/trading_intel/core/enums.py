@@ -1,7 +1,6 @@
-"""Closed vocabularies shared across the whole system.
+"""全系統共用的封閉詞彙表。
 
-Values equal their names so that serialisation, database storage, and log
-output all read the same.
+值與名稱相同，讓序列化、資料庫存放與日誌輸出三者讀起來一致。
 """
 
 from __future__ import annotations
@@ -41,7 +40,10 @@ class Severity(StrEnum):
 
 
 class DecisionLevel(IntEnum):
-    """Ordered on purpose: downgrades are expressed as ``max(...)`` comparisons."""
+    """刻意用 IntEnum：降級判斷需要比大小，寫成 max(...) 才自然。
+
+    對應 SPEC 7.4 的人機分權三級。
+    """
 
     AUTO = 1
     CONFIRM = 2
@@ -49,6 +51,8 @@ class DecisionLevel(IntEnum):
 
 
 class QualityCheck(StrEnum):
+    """SPEC 3.3 的五類資料品質閘門。"""
+
     FRESHNESS = "FRESHNESS"
     COMPLETENESS = "COMPLETENESS"
     SANITY = "SANITY"
@@ -57,6 +61,8 @@ class QualityCheck(StrEnum):
 
 
 class DocType(StrEnum):
+    """NewsAnalystAgent 以此區分抽取提示，但共用同一份輸出 schema（SPEC 4.2）。"""
+
     NEWS = "NEWS"
     ANNOUNCEMENT = "ANNOUNCEMENT"
     FINANCIAL_REPORT = "FINANCIAL_REPORT"

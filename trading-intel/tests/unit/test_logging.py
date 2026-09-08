@@ -1,3 +1,5 @@
+"""structlog 接線：renderer 選擇、時間戳來源、correlation id 綁定。"""
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -43,7 +45,7 @@ def test_level_is_respected(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_timestamp_comes_from_the_active_clock(capsys: pytest.CaptureFixture[str]) -> None:
-    """A backtest's logs must be stamped with simulated time, not wall time."""
+    """回測的日誌必須蓋上模擬時間，不是牆上時間。"""
     configure_logging("prod")
     with use_clock(SimulatedClock(FIXED)):
         get_logger("test").warning("inside the backtest")

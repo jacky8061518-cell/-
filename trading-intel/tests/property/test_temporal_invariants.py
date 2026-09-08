@@ -1,4 +1,4 @@
-"""Invariants that must hold for every value, not just the ones we thought of."""
+"""必須對每一個值都成立的不變條件，不只是我們想得到的那幾個。"""
 
 from __future__ import annotations
 
@@ -16,14 +16,14 @@ from trading_intel.core.types import Bar, Document
 
 ENTITY = make_entity_id(Market.TW, "2330")
 
-# hypothesis takes naive bounds and attaches the timezone itself.
+# hypothesis 接受 naive 的上下界，時區由它自己附加。
 aware_datetimes = st.datetimes(
     min_value=datetime(1990, 1, 1),  # noqa: DTZ001
     max_value=datetime(2100, 1, 1),  # noqa: DTZ001
     timezones=st.just(UTC),
 )
 
-#: Prices are exact by construction: two decimal places, no float anywhere.
+#: 價格在建構上就是精確的：兩位小數，全程不碰 float。
 prices = st.decimals(
     min_value=Decimal("0.01"),
     max_value=Decimal("1000000"),
@@ -84,7 +84,7 @@ def test_bar_json_round_trip_is_exact(bar: Bar) -> None:
 @settings(max_examples=200)
 @given(bar=bars())
 def test_bar_round_trip_preserves_decimal_precision(bar: Bar) -> None:
-    """The reason prices are ``Decimal``: a float round trip loses cents."""
+    """價格採用 ``Decimal`` 的理由：走一趟 float 會掉分位。"""
     restored = Bar.model_validate_json(bar.model_dump_json())
     for field in ("open", "high", "low", "close", "adj_factor"):
         original = getattr(bar, field)
@@ -145,7 +145,7 @@ def test_evidence_id_is_a_pure_function(source: str, payload: bytes) -> None:
 @settings(max_examples=100)
 @given(doc=documents())
 def test_document_hash_is_order_independent(doc: Document) -> None:
-    # Rebuilding from a shuffled kwargs dict must not change the hash.
+    # 以打亂順序的 kwargs 重建，雜湊值不得改變。
     fields = dict(reversed(list(doc.model_dump().items())))
     rebuilt = Document(**fields)
     assert payload_hash(rebuilt) == payload_hash(doc)

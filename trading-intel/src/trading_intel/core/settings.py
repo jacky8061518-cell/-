@@ -1,7 +1,9 @@
-"""Layered configuration: ``configs/base.yaml`` -> ``configs/{env}.yaml`` -> env vars.
+"""分層設定：``configs/base.yaml`` -> ``configs/{env}.yaml`` -> 環境變數。
 
-Settings are frozen. A run's configuration is part of its reproducibility story,
-so it must not drift while the process is alive.
+設定是 frozen 的。一次執行所使用的設定屬於其可重現性的一部分，
+因此在行程存活期間不得變動。
+
+對應 CLAUDE.md 第 5 條：所有參數放 configs/，程式碼中出現魔術數字即為 bug。
 """
 
 from __future__ import annotations
@@ -17,8 +19,8 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from trading_intel.core.errors import ConfigError
 
-#: Repository root, i.e. the directory holding ``configs/``. ``TI_CONFIG_DIR``
-#: overrides it for installed deployments where the source tree is gone.
+#: 專案根目錄，也就是放 ``configs/`` 的那一層。安裝後部署已無原始碼樹時，
+#: 可用 ``TI_CONFIG_DIR`` 環境變數覆寫。
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -94,18 +96,22 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Environment variables outrank the YAML we pass in as init kwargs."""
+        """環境變數的優先序高於以 init kwargs 傳入的 YAML 內容。
+
+        pydantic-settings 預設 init kwargs 優先，與 SPEC 要求的疊加順序相反，
+        因此在此把 env_settings 排到 init_settings 之前。
+        """
         return (env_settings, dotenv_settings, file_secret_settings, init_settings)
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise ConfigError("configuration file not found", path=str(path))
+        raise ConfigError("找不到設定檔", path=str(path))
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     if loaded is None:
         return {}
     if not isinstance(loaded, dict):
-        raise ConfigError("configuration file must contain a mapping", path=str(path))
+        raise ConfigError("設定檔內容必須是一個對應表", path=str(path))
     return loaded
 
 
@@ -122,14 +128,14 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
 
 @lru_cache(maxsize=1)
 def load_settings(env: str | None = None) -> Settings:
-    """Load settings for ``env`` (default: ``$TI_ENV``, else ``dev``).
+    """載入 ``env`` 的設定（預設取 ``$TI_ENV``，再預設為 ``dev``）。
 
-    Layering is base -> environment file -> process environment, so an operator
-    can always override a single value without editing a file.
+    疊加順序為 base -> 環境設定檔 -> 行程環境變數，
+    如此維運人員永遠可以不改檔案就覆寫單一數值。
     """
     resolved = env or os.environ.get("TI_ENV", "dev")
     if resolved not in _VALID_ENVS:
-        raise ConfigError("unknown environment", env=resolved, valid=", ".join(_VALID_ENVS))
+        raise ConfigError("未知的環境名稱", env=resolved, valid=", ".join(_VALID_ENVS))
 
     data = _deep_merge(
         _read_yaml(config_dir() / "base.yaml"), _read_yaml(config_dir() / f"{resolved}.yaml")
@@ -140,7 +146,7 @@ def load_settings(env: str | None = None) -> Settings:
     except ValidationError as exc:
         paths = ["/".join(str(part) for part in err["loc"]) for err in exc.errors()]
         raise ConfigError(
-            "invalid configuration",
+            "設定內容不合法",
             env=resolved,
             fields=", ".join(paths),
             detail=str(exc),

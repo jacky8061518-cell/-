@@ -97,7 +97,7 @@ def test_set_to_backwards_raises_clock_rewind_error() -> None:
     with pytest.raises(ClockRewindError) as excinfo:
         clock.set_to(FIXED - timedelta(seconds=1))
     assert clock.now() == FIXED
-    assert "backwards" in str(excinfo.value)
+    assert "往回撥" in str(excinfo.value)
 
 
 def test_set_to_the_same_instant_is_allowed() -> None:
@@ -129,18 +129,15 @@ def test_to_display_tz_accepts_another_zone() -> None:
 
 
 # --- trading_day -----------------------------------------------------------
-# The boundary is the local close, not UTC midnight. These cases are exactly the
-# ones a naive `ts.date()` gets wrong.
+# 邊界是當地收盤時間而非 UTC 午夜。以下案例正是天真的 `ts.date()` 會算錯的那些。
 
 
 @pytest.mark.parametrize(
     ("ts", "expected"),
     [
-        # 21:00 Taipei on the 19th is 13:00 UTC — same UTC day, after the 13:30
-        # close in local terms? No: 13:00 UTC is 21:00 Taipei, i.e. after close,
-        # so it belongs to the next trading day.
+        # 13:00 UTC 是台北 21:00，已過 13:30 收盤，因此屬於次一個交易日。
         (datetime(2020, 3, 19, 13, 0, tzinfo=UTC), date(2020, 3, 20)),
-        # 11:00 Taipei on the 19th (03:00 UTC) is mid-session: trading day 19th.
+        # 03:00 UTC 是台北 11:00，盤中，交易日為 19 日。
         (datetime(2020, 3, 19, 3, 0, tzinfo=UTC), date(2020, 3, 19)),
     ],
 )
@@ -151,11 +148,10 @@ def test_trading_day_tw(ts: datetime, expected: date) -> None:
 @pytest.mark.parametrize(
     ("ts", "expected"),
     [
-        # 15:00 New York on the 19th is 19:00 UTC: still the 19th session, and a
-        # UTC-date split would already agree here.
+        # 19:00 UTC 是紐約 15:00，仍屬 19 日盤中；此例即使用 UTC 日期切也會一致。
         (datetime(2020, 3, 19, 19, 0, tzinfo=UTC), date(2020, 3, 19)),
-        # 17:00 New York on the 19th is 21:00 UTC: after the 16:00 close, so the
-        # 20th. A UTC-date split would wrongly say the 19th.
+        # 21:00 UTC 是紐約 17:00，已過 16:00 收盤，因此屬於 20 日。
+        # 若以 UTC 日期切日會誤判為 19 日，這正是本函式存在的理由。
         (datetime(2020, 3, 19, 21, 0, tzinfo=UTC), date(2020, 3, 20)),
     ],
 )
@@ -164,12 +160,11 @@ def test_trading_day_us(ts: datetime, expected: date) -> None:
 
 
 def test_trading_day_crosses_the_utc_date_boundary_for_us() -> None:
-    # 20:00 New York on the 19th is 00:00 UTC on the 20th. Slicing on the UTC
-    # date would say the 20th... which is right here only by accident; the point
-    # is that the answer comes from the local close, not from UTC.
+    # 紐約 19 日 20:00 是 UTC 20 日 00:00。用 UTC 日期切也會得到 20 日，
+    # 但那只是碰巧對；重點在於答案來自當地收盤時間，不是來自 UTC。
     ts = datetime(2020, 3, 20, 0, 0, tzinfo=UTC)
     assert trading_day(ts, Market.US) == date(2020, 3, 20)
-    # Meanwhile in Taipei that same instant is 08:00 on the 20th: pre-close.
+    # 同一瞬間在台北是 20 日 08:00，尚未收盤。
     assert trading_day(ts, Market.TW) == date(2020, 3, 20)
 
 

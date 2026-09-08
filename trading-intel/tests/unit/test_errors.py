@@ -1,3 +1,5 @@
+"""例外階層與結構化 context。"""
+
 from __future__ import annotations
 
 import pytest

@@ -1,7 +1,7 @@
-"""Exception hierarchy for trading-intel.
+"""trading-intel 的例外階層。
 
-Every exception carries a ``context`` mapping so structured logging can emit the
-failure with machine-readable fields instead of a formatted string.
+每個例外都帶 ``context`` 對應表，讓結構化日誌能以機器可讀的欄位記錄失敗，
+而不是只丟一段格式化過的字串。
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any
 
 
 class TradingIntelError(Exception):
-    """Base class for every error raised by this project."""
+    """本專案所有例外的基底類別。"""
 
     def __init__(self, message: str = "", /, **context: Any) -> None:
         super().__init__(message)
@@ -28,40 +28,40 @@ class TradingIntelError(Exception):
 
 
 class ConfigError(TradingIntelError):
-    """Configuration is missing, malformed, or internally inconsistent."""
+    """設定缺漏、格式錯誤，或內部不一致。"""
 
 
 class ClockError(TradingIntelError):
-    """Base class for clock-related failures."""
+    """時鐘相關失敗的基底類別。"""
 
 
 class NaiveDatetimeError(ClockError):
-    """A datetime without tzinfo reached code that requires an aware value."""
+    """不帶 tzinfo 的 datetime 進入了要求 aware 值的程式碼。"""
 
 
 class ClockRewindError(ClockError):
-    """An attempt was made to move a simulated clock backwards."""
+    """試圖把模擬時鐘往回撥。"""
 
 
 class TemporalIntegrityError(TradingIntelError):
-    """Timestamps violate the required ordering (e.g. ingest before event)."""
+    """時間戳違反必要的先後順序，例如 ingest_time 早於 event_time。"""
 
 
 class LookaheadError(TradingIntelError):
-    """Data dated after the current ``asof`` boundary was read."""
+    """讀到了 asof 界線之後的資料，即前視偏誤。"""
 
 
-class NetworkAccessDenied(TradingIntelError):  # noqa: N818  (name fixed by spec)
-    """Network access was attempted inside a no-network sandbox."""
+class NetworkAccessDenied(TradingIntelError):  # noqa: N818  (名稱由 SPEC 指定)
+    """在禁網沙箱內嘗試存取網路。"""
 
 
 class DataQualityError(TradingIntelError):
-    """A data quality check failed hard enough to stop processing."""
+    """資料品質檢查失敗，嚴重到必須停止處理。"""
 
 
 class SchemaValidationError(TradingIntelError):
-    """Payload did not satisfy its declared schema."""
+    """Payload 不符合其宣告的 schema。"""
 
 
 class BudgetExceededError(TradingIntelError):
-    """A token, call-rate, or time budget was exhausted."""
+    """token、呼叫速率或時間預算已耗盡。"""

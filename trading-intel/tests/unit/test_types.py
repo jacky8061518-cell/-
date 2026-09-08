@@ -1,3 +1,8 @@
+"""core.types 的契約驗證。
+
+所有失效案例都必須有測試，不是只測 happy path（CLAUDE.md 開發流程）。
+"""
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -73,7 +78,7 @@ def signal(**overrides: object) -> Signal:
     return Signal(**kwargs)
 
 
-# --- TemporalModel ---------------------------------------------------------
+# --- TemporalModel 雙時間戳 ---------------------------------------------------------
 
 
 class _Sample(TemporalModel):
@@ -95,15 +100,15 @@ def test_temporal_model_allows_small_clock_skew() -> None:
 
 
 def test_temporal_model_rejects_ingest_far_before_event() -> None:
-    # A dedicated exception, not a generic ValidationError: this is a data
-    # pipeline bug, and callers need to be able to catch exactly it.
+    # 用專屬例外而非泛用的 ValidationError：這是資料管線的 bug，
+    # 呼叫端需要能精準攔截它。
     with pytest.raises(TemporalIntegrityError) as excinfo:
         _Sample(
             event_time=EVENT_TIME,
             ingest_time=EVENT_TIME - MAX_CLOCK_SKEW - timedelta(seconds=1),
             value=1,
         )
-    assert "clock skew" in str(excinfo.value)
+    assert "時鐘偏移" in str(excinfo.value)
 
 
 def test_temporal_integrity_error_carries_structured_context() -> None:
@@ -136,7 +141,7 @@ def test_temporal_model_forbids_extra_fields() -> None:
         _Sample(event_time=EVENT_TIME, ingest_time=INGEST_TIME, value=1, typo=3)
 
 
-# --- Instrument ------------------------------------------------------------
+# --- Instrument 存續期間 ------------------------------------------------------------
 
 
 def test_instrument_is_active_between_listing_and_delisting() -> None:
@@ -192,7 +197,7 @@ def test_instrument_rejects_a_bad_currency_code() -> None:
         )
 
 
-# --- Bar -------------------------------------------------------------------
+# --- Bar OHLC 不變條件 -------------------------------------------------------------------
 
 
 def test_valid_bar() -> None:
@@ -204,14 +209,14 @@ def test_valid_bar() -> None:
 @pytest.mark.parametrize(
     ("overrides", "why"),
     [
-        ({"low": Decimal("101")}, "low above open"),
-        ({"low": Decimal("106")}, "low above close"),
-        ({"high": Decimal("104")}, "high below close"),
-        ({"open": Decimal("120")}, "open above high"),
+        ({"low": Decimal("101")}, "low 高於 open"),
+        ({"low": Decimal("106")}, "low 高於 close"),
+        ({"high": Decimal("104")}, "high 低於 close"),
+        ({"open": Decimal("120")}, "open 高於 high"),
     ],
 )
 def test_bar_rejects_broken_ohlc(overrides: dict[str, Decimal], why: str) -> None:
-    with pytest.raises(ValidationError, match="OHLC ordering violated"):
+    with pytest.raises(ValidationError, match="OHLC 順序違規"):
         bar(**overrides)
     assert why
 
@@ -227,7 +232,7 @@ def test_bar_keeps_decimal_precision() -> None:
     assert isinstance(b.close, Decimal)
 
 
-# --- Document / FeatureVector ---------------------------------------------
+# --- Document 與 FeatureVector ---------------------------------------------
 
 
 def test_document_defaults() -> None:
@@ -260,7 +265,7 @@ def test_document_rejects_out_of_range_credibility() -> None:
 
 
 def test_feature_vector_requires_a_version_per_feature() -> None:
-    with pytest.raises(ValidationError, match="missing feature_versions"):
+    with pytest.raises(ValidationError, match="缺少 feature_versions"):
         FeatureVector(
             event_time=EVENT_TIME,
             ingest_time=INGEST_TIME,
@@ -283,7 +288,7 @@ def test_feature_vector_accepts_matching_versions() -> None:
     assert fv.values["mom_20d"] == 0.3
 
 
-# --- Signal ----------------------------------------------------------------
+# --- Signal 失效條件 ----------------------------------------------------------------
 
 
 def test_valid_signal() -> None:
@@ -318,7 +323,7 @@ def test_signal_cannot_be_mutated() -> None:
         s.score = 0.9
 
 
-# --- OrderIntent / RiskVerdict --------------------------------------------
+# --- OrderIntent 與 RiskVerdict --------------------------------------------
 
 
 def test_order_intent_weight_bounds() -> None:
@@ -345,7 +350,7 @@ def test_order_intent_weight_bounds() -> None:
 
 
 def test_risk_verdict_rejection_must_name_a_breached_limit() -> None:
-    with pytest.raises(ValidationError, match="breached limit"):
+    with pytest.raises(ValidationError, match="違反的限額"):
         RiskVerdict(
             event_time=EVENT_TIME,
             ingest_time=INGEST_TIME,
@@ -372,7 +377,7 @@ def test_risk_verdict_approval_needs_no_breaches() -> None:
     assert verdict.breached_limits == ()
 
 
-# --- DataQualityAlert ------------------------------------------------------
+# --- DataQualityAlert 品質告警 ------------------------------------------------------
 
 
 def test_data_quality_alert_allows_a_market_wide_alert() -> None:
@@ -389,7 +394,7 @@ def test_data_quality_alert_allows_a_market_wide_alert() -> None:
     assert alert.resulting_state is TradingState.NO_TRADE
 
 
-# --- AgentOutput -----------------------------------------------------------
+# --- AgentOutput 棄權契約 -----------------------------------------------------------
 
 
 class _Payload(BaseModel):
@@ -415,7 +420,7 @@ def test_agent_output_with_payload_is_accepted() -> None:
 
 
 def test_abstaining_agent_must_not_return_a_payload() -> None:
-    with pytest.raises(ValidationError, match="must not return a payload"):
+    with pytest.raises(ValidationError, match="不得回傳 payload"):
         agent_output(abstain=True)
 
 
@@ -425,7 +430,7 @@ def test_abstaining_agent_with_no_payload_is_accepted() -> None:
 
 
 def test_non_abstaining_agent_must_return_a_payload() -> None:
-    with pytest.raises(ValidationError, match="must return a payload"):
+    with pytest.raises(ValidationError, match="必須回傳 payload"):
         agent_output(payload=None)
 
 
@@ -442,3 +447,32 @@ def test_agent_output_is_frozen() -> None:
 
 def test_entity_id_newtype_is_a_plain_string_at_runtime() -> None:
     assert isinstance(EntityId("TW:2330"), str)
+
+
+# --- SPEC 第 11 節指定的型別名稱 ---
+
+
+def test_spec_aliases_point_to_the_same_classes() -> None:
+    """SPEC Phase 0 以 MarketEvent 與 NewsEvent 稱呼這兩個型別。"""
+    from trading_intel.core.types import MarketEvent, NewsEvent
+
+    assert MarketEvent is Bar
+    assert NewsEvent is Document
+
+
+@pytest.mark.parametrize(
+    "model",
+    [Bar, Document, FeatureVector, Signal, OrderIntent, RiskVerdict],
+    ids=lambda m: m.__name__,
+)
+def test_every_spec_type_carries_both_timestamps(model: type[TemporalModel]) -> None:
+    """SPEC 第 11 節：每個型別必含 event_time 與 ingest_time 兩個 UTC datetime 欄位。"""
+    assert issubclass(model, TemporalModel)
+    assert {"event_time", "ingest_time"} <= set(model.model_fields)
+
+
+def test_signal_carries_the_four_mandatory_fields() -> None:
+    """SPEC 第 11 節：Signal 必含 confidence、evidence_ids、half_life_days、
+    invalidation_condition。"""
+    required = {"confidence", "evidence_ids", "half_life_days", "invalidation_condition"}
+    assert required <= set(Signal.model_fields)
