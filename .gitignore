@@ -19,3 +19,6 @@ data/databases/tw/*
 !data/databases/tw/coverage-report.csv
 data/cache/
 data/snapshots/
+
+# Desk run log is local operational state, not source.
+data/desk/
