@@ -33,3 +33,18 @@ agents:
   max_calls_per_hour: 200            # TODO: placeholder
   timeout_seconds: 60.0              # TODO: placeholder
   max_retries: 2                     # TODO: placeholder
+
+# 資料品質閘門（SPEC 3.3）。任一失敗，該標的當日狀態設為 NO_TRADE。
+quality:
+  # 時效性：最新 bar 距 asof 超過幾分鐘即視為過期。
+  max_staleness_minutes: 1440         # TODO: 依資料源分別設定
+  # 合理性：單日報酬絕對值上限。台股漲跌幅 10%，留一點餘裕給誤差。
+  tw_daily_return_limit: 0.105
+  us_daily_return_limit: 0.50         # TODO: 美股無漲跌幅，此為極端值門檻
+  # 完整性：一段期間內允許缺漏的交易日比例。
+  max_missing_session_ratio: 0.02     # TODO: placeholder
+  # 分布漂移：PSI 門檻（SPEC 3.3 明訂）。
+  psi_warn: 0.25
+  psi_disable: 0.5
+  # 多源交叉核對：兩來源收盤價差異超過此比例即發 DATA_CONFLICT。
+  cross_source_tolerance: 0.001       # TODO: placeholder

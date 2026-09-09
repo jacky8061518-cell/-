@@ -11,10 +11,10 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from trading_intel.core.errors import ConfigError
@@ -63,6 +63,27 @@ class CostModel(BaseModel):
     impact_coefficient: float = Field(ge=0)
 
 
+class QualityLimits(BaseModel):
+    """資料品質閘門的門檻（SPEC 3.3）。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_staleness_minutes: int = Field(gt=0)
+    tw_daily_return_limit: float = Field(gt=0)
+    us_daily_return_limit: float = Field(gt=0)
+    max_missing_session_ratio: float = Field(ge=0, le=1)
+    psi_warn: float = Field(gt=0)
+    psi_disable: float = Field(gt=0)
+    cross_source_tolerance: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _validate_psi_order(self) -> Self:
+        if self.psi_disable <= self.psi_warn:
+            msg = "psi_disable 必須大於 psi_warn"
+            raise ValueError(msg)
+        return self
+
+
 class AgentBudget(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -86,6 +107,7 @@ class Settings(BaseSettings):
     risk: RiskLimits
     costs: CostModel
     agents: AgentBudget
+    quality: QualityLimits
 
     @classmethod
     def settings_customise_sources(

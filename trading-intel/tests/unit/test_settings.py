@@ -34,6 +34,14 @@ agents:
   max_calls_per_hour: 200
   timeout_seconds: 60.0
   max_retries: 2
+quality:
+  max_staleness_minutes: 1440
+  tw_daily_return_limit: 0.105
+  us_daily_return_limit: 0.50
+  max_missing_session_ratio: 0.02
+  psi_warn: 0.25
+  psi_disable: 0.5
+  cross_source_tolerance: 0.001
 """
 
 
