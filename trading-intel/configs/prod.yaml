@@ -1,13 +1,13 @@
 # Production. Every value here is intentionally tighter than base.
 #
-# TODO(owner): these are NOT approved risk numbers. Do not run prod until they
-# have been set deliberately.
+# 正式環境的限額刻意比 base 更緊。這些同樣是 Claude 提出的假設值，
+# 上線前必須由你逐條核定。
 data:
   raw_root: /var/lib/trading-intel/raw
   parquet_root: /var/lib/trading-intel/parquet
-  max_staleness_minutes: 15          # TODO: placeholder, needs sign-off
+  max_staleness_minutes: 15          # 盤中資料超過 15 分鐘未更新即視為異常
 
 risk:
-  max_position_weight: 0.03          # TODO: placeholder, needs sign-off
-  drawdown_derisk: 0.05              # TODO: placeholder, needs sign-off
-  drawdown_flatten: 0.10             # TODO: placeholder, needs sign-off
+  max_position_weight: 0.03          # 正式環境收緊至 3%
+  drawdown_derisk: 0.05              # 正式環境提早減碼
+  drawdown_flatten: 0.10             # 正式環境提早全部平倉

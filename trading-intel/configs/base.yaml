@@ -1,50 +1,70 @@
-# Shared defaults. Environment files override individual keys.
+# 共用預設值。環境設定檔可覆寫個別項目。
 #
-# TODO(owner): every number under `risk:` and `costs:` below is a PLACEHOLDER
-# chosen only to be structurally valid. None of it is a risk decision. Review
-# and set real values before anything reaches staging or prod.
+# risk 與 costs 底下的數值為 Claude 提出的假設值，經使用者指示先行填入以解除阻塞。
+# 每一條都附推理，方便日後逐條核定或推翻。上線前必須重新確認（CLAUDE.md 詢問時機第 4 條）。
+# 標註「法定」者為法律規定的稅率，不是假設值。
 
 display_tz: Asia/Taipei
 
 data:
   raw_root: ./data/raw
   parquet_root: ./data/parquet
-  max_staleness_minutes: 60          # TODO: confirm per data source
+  max_staleness_minutes: 60
 
 risk:
-  max_position_weight: 0.05          # TODO: placeholder, needs sign-off
-  max_sector_weight: 0.25            # TODO: placeholder, needs sign-off
-  max_gross_exposure: 1.0            # TODO: placeholder, needs sign-off
-  max_net_exposure: 0.6              # TODO: placeholder, needs sign-off
-  drawdown_derisk: 0.08              # TODO: placeholder, needs sign-off
-  drawdown_flatten: 0.15             # TODO: placeholder, needs sign-off
-  adv_participation_cap: 0.05        # TODO: placeholder, needs sign-off
-  top5_concentration_cap: 0.4        # TODO: placeholder, needs sign-off
+  # 單一標的上限 5%：對應約 20 檔的分散度。台股個股單日可跌 10%，
+  # 5% 部位的單日最大衝擊約為總資產 0.5%，屬可承受範圍。
+  max_position_weight: 0.05
+  # 產業上限 25%：台股半導體權重極高，設得比一般市場寬。
+  # 設太低會讓系統無法表達「看好半導體」這種在台股很常見的觀點。
+  max_sector_weight: 0.25
+  # 總曝險 100%：不使用槓桿。研究階段不該靠槓桿放大結果。
+  max_gross_exposure: 1.0
+  # 淨曝險 60%：多空相抵後最多六成方向性曝險，其餘為對沖或現金。
+  max_net_exposure: 0.6
+  # 回撤 8% 減碼：SPEC 7.2 舉例為 3%，但股票策略的正常波動就會觸及 3%，
+  # 會導致頻繁的無謂減碼。8% 大於一般回檔、小於真正的策略失效。
+  drawdown_derisk: 0.08
+  # 回撤 15% 全部平倉並進入人工審核。這是「停下來想一想」的門檻，不是停損。
+  drawdown_flatten: 0.15
+  # 單日成交量參與度上限 5%：超過此比例，下單本身就會推動價格，
+  # 回測結果將無法在實盤重現。
+  adv_participation_cap: 0.05
+  # 前五大部位合計上限 40%：避免分散度在帳面上達標、實質上仍押注少數標的。
+  top5_concentration_cap: 0.4
 
 costs:
-  tw_transaction_tax: 0.003          # statutory, not a placeholder
-  tw_daytrade_tax: 0.0015            # statutory, not a placeholder
-  commission_bps: 1.425              # TODO: confirm against broker schedule
-  slippage_bps: 5.0                  # TODO: placeholder, calibrate in Phase 2
-  impact_coefficient: 0.1            # TODO: placeholder, calibrate in Phase 2
+  tw_transaction_tax: 0.003          # 證交稅 0.3%，法定，賣出時課徵
+  tw_daytrade_tax: 0.0015            # 當沖減半 0.15%，法定
+  # 手續費 0.1425% = 14.25 個基點，買賣各課一次。
+  # 註：先前誤填 1.425（少了十倍）已修正。券商折扣後通常約 8.55 bps，
+  # 但回測刻意用全額——寧可高估成本，也不要低估（SPEC 第 12 節）。
+  commission_bps: 14.25
+  # 滑價 5 bps：實際成交價與決策價的差距。流動性佳的大型股較小，
+  # 中小型股更大。這是保守的單一假設值，Phase 2 應改為依標的估計。
+  slippage_bps: 5.0
+  # 市場衝擊係數，用於平方根模型 impact = coef * sqrt(下單量 / 日均量)。
+  # 0.1 是文獻常見起始值，需以實際成交資料校準。
+  impact_coefficient: 0.1
 
 agents:
-  daily_token_budget: 1000000        # TODO: placeholder
-  max_calls_per_hour: 200            # TODO: placeholder
-  timeout_seconds: 60.0              # TODO: placeholder
-  max_retries: 2                     # TODO: placeholder
+  daily_token_budget: 1000000        # 假設值，Phase 3 依實測調整
+  max_calls_per_hour: 200            # 假設值
+  timeout_seconds: 60.0              # 假設值
+  max_retries: 2                     # 逾時或格式錯誤時重試兩次，仍失敗則降級為棄權
 
 # 資料品質閘門（SPEC 3.3）。任一失敗，該標的當日狀態設為 NO_TRADE。
 quality:
-  # 時效性：最新 bar 距 asof 超過幾分鐘即視為過期。
-  max_staleness_minutes: 1440         # TODO: 依資料源分別設定
-  # 合理性：單日報酬絕對值上限。台股漲跌幅 10%，留一點餘裕給誤差。
+  # 時效性：最新一根 bar 距 asof 超過幾分鐘即視為過期。日頻資料設一天。
+  max_staleness_minutes: 1440
+  # 合理性：單日報酬絕對值上限。台股漲跌幅 10%，留 0.5% 餘裕給計算誤差。
   tw_daily_return_limit: 0.105
-  us_daily_return_limit: 0.50         # TODO: 美股無漲跌幅，此為極端值門檻
+  # 美股無漲跌幅限制，此為「幾乎必為資料錯誤」的極端門檻。
+  us_daily_return_limit: 0.50
   # 完整性：一段期間內允許缺漏的交易日比例。
-  max_missing_session_ratio: 0.02     # TODO: placeholder
-  # 分布漂移：PSI 門檻（SPEC 3.3 明訂）。
+  max_missing_session_ratio: 0.02
+  # 分布漂移的 PSI 門檻，兩者皆為 SPEC 3.3 明訂。
   psi_warn: 0.25
   psi_disable: 0.5
   # 多源交叉核對：兩來源收盤價差異超過此比例即發 DATA_CONFLICT。
-  cross_source_tolerance: 0.001       # TODO: placeholder
+  cross_source_tolerance: 0.001

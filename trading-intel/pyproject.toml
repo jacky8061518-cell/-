@@ -17,6 +17,13 @@ dependencies = [
     "pandas>=2.2,<3",
     "pyarrow>=16",
     "redis>=5.0",
+    # Phase 2 起：統計檢定與回測。
+    # statsmodels 提供 ADF/KPSS 的標準實作與臨界值表。自行實作這兩個檢定
+    # 需要 MacKinnon 臨界值，出錯機率高且不易察覺，而 SPEC 第 11 節明訂
+    # Phase 2「優先正確性而非速度」。
+    "numpy>=1.26,<3",
+    "scipy>=1.13",
+    "statsmodels>=0.14",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +36,7 @@ dev = [
     "pre-commit>=3.7",
     "types-PyYAML>=6.0",
     "pandas-stubs>=2.2",
+    "scipy-stubs>=1.13",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -49,6 +57,12 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
+
+# statsmodels 沒有提供型別標記。只放行「無法分析此模組」這一項，
+# 呼叫端仍須自行標註回傳型別，因此不影響 strict 對我們自己程式碼的檢查。
+[[tool.mypy.overrides]]
+module = "statsmodels.*"
+ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true
