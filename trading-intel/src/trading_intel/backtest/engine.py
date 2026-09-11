@@ -15,6 +15,7 @@ SPEC 第 11 節 Phase 2：「逐事件推進，禁止向量化捷徑造成的隱
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -210,6 +211,9 @@ def run_backtest(
     cash = initial_equity
     equity = initial_equity
     positions: dict[EntityId, Position] = {}
+    #: 上一期實際套用過的目標權重。用來判斷「這期的權重跟上次一樣嗎」——
+    #: 見 _rebalance 對這個問題的說明。
+    last_targets: dict[EntityId, float] = {}
 
     with backtest_mode(ensure_utc(asof)):
         for index, session in enumerate(ordered_sessions):
@@ -248,12 +252,14 @@ def run_backtest(
             fills, total_cost, turnover = _rebalance(
                 positions=positions,
                 targets=targets,
+                last_targets=last_targets,
                 tradable=tradable,
                 history=history,
                 session=session,
                 equity=gross_equity,
                 costs=costs,
             )
+            last_targets = dict(targets)
             result.fills.extend(fills)
 
             # 現金隨買賣增減，成本一律由現金支付。
@@ -321,24 +327,46 @@ def _rebalance(
     *,
     positions: dict[EntityId, Position],
     targets: Mapping[EntityId, float],
+    last_targets: Mapping[EntityId, float],
     tradable: frozenset[EntityId],
     history: Mapping[EntityId, Sequence[PriceBar]],
     session: date,
     equity: Decimal,
     costs: CostModel,
 ) -> tuple[list[Fill], Decimal, float]:
-    """把目標權重變成實際交易，並收取成本。"""
+    """把目標權重變化量變成實際交易，並收取成本。
+
+    **只有目標權重真的改變的標的才重新換算股數。** 這是修正過一次的行為：
+    原本每天都用當天的權益與價格，把權重相同的標的也重新換算一次目標股數，
+    結果價格只要一有波動，就會被迫交易把權重「拉回」原本那個百分比——
+    這是「每日再平衡到固定權重」，不是「維持現有部位」。
+
+    用真實資料實測抓到的：一個目標權重從頭到尾沒變過的買進持有策略，
+    五檔股票兩年跑出 2420 筆成交，而正確答案應該是 5 筆（只有建倉那天）。
+    問題不在策略，在引擎把「權重不變」誤解成「每天都要重新配置到這個
+    百分比」，而不是「維持上次配置的結果」。
+
+    現在的判斷依據是：把這一期的目標權重拿去跟**上一期實際套用過的**
+    目標權重比對，只有變了才重新算股數；沒變的標的直接跳過，任由它隨
+    價格自然漂移。這也是大多數真實交易系統對「目標權重」的定義——
+    重新配置由目標**改變**觸發，不是由價格波動觸發。
+    """
     fills: list[Fill] = []
     total_cost = Decimal("0")
     traded_notional = Decimal("0")
 
     entities = set(positions) | set(targets)
     for entity_id in sorted(entities):
+        target_weight = targets.get(entity_id, 0.0)
+        previous_weight = last_targets.get(entity_id, 0.0)
+        if entity_id in positions and math.isclose(target_weight, previous_weight, abs_tol=1e-12):
+            # 目標沒變，維持現有股數不動——不因為價格波動就被迫交易。
+            continue
+
         bar = _bar_on(history, entity_id, session)
         if bar is None or bar.close <= 0:
             continue
 
-        target_weight = targets.get(entity_id, 0.0)
         # 不可交易的標的：不能新建或加碼，但既有部位可以續抱。
         if entity_id not in tradable and target_weight != 0.0:
             continue
