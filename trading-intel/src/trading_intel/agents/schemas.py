@@ -19,7 +19,7 @@ FROZEN = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
 
 class EventType(StrEnum):
-    """事件分類法 v1，共 26 類。完整定義與推理見 docs/EVENT-TAXONOMY.md。
+    """事件分類法 v1.1，共 27 類。完整定義與推理見 docs/EVENT-TAXONOMY.md。
 
     每一類都必須對應一個可檢驗的價格反應假設——「公司有好消息」不是一類，
     因為它無法被回測。
@@ -31,6 +31,7 @@ class EventType(StrEnum):
     GUIDANCE_RAISE = "GUIDANCE_RAISE"
     GUIDANCE_CUT = "GUIDANCE_CUT"
     REVENUE_MONTHLY = "REVENUE_MONTHLY"
+    EARNINGS_CALL_TONE = "EARNINGS_CALL_TONE"
     # B. 營運與產能
     CAPACITY_EXPANSION = "CAPACITY_EXPANSION"
     CAPACITY_CUT = "CAPACITY_CUT"
