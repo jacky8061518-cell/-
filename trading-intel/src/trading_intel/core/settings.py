@@ -163,6 +163,16 @@ class ModelRiskSettings(BaseModel):
     min_agent_consistency: float = Field(gt=0, le=1)
 
 
+class AlertingSettings(BaseModel):
+    """告警抗疲勞（SPEC 8.2）。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_alerts_per_hour: int = Field(gt=0)
+    novelty_window_hours: int = Field(gt=0)
+    dedup_similarity_threshold: float = Field(gt=0, le=1)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="TI_",
@@ -183,6 +193,7 @@ class Settings(BaseSettings):
     portfolio: PortfolioSettings
     monitoring: MonitoringSettings
     model_risk: ModelRiskSettings
+    alerting: AlertingSettings
 
     @classmethod
     def settings_customise_sources(

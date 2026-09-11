@@ -118,3 +118,12 @@ model_risk:
   min_rolling_ic: 0.0               # IC 下限
   max_live_backtest_tracking_error: 0.05
   min_agent_consistency: 0.67       # 低於此值代表任務不適合 LLM
+
+# 告警抗疲勞（SPEC 8.2）。告警疲勞是這類系統最常見的死因。
+alerting:
+  # 每小時每個標的的告警上限，超過改為彙整。
+  max_alerts_per_hour: 5
+  # 過去這麼多小時內已經告知過的內容降級（novelty 檢查）。
+  novelty_window_hours: 24
+  # 兩則告警視為「同一事件」的內容相似度門檻。
+  dedup_similarity_threshold: 0.85
