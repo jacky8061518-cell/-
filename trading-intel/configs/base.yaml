@@ -68,3 +68,53 @@ quality:
   psi_disable: 0.5
   # 多源交叉核對：兩來源收盤價差異超過此比例即發 DATA_CONFLICT。
   cross_source_tolerance: 0.001
+
+# 人機分權三級（SPEC 7.4）。刻意寫在設定檔而非程式碼，因為這是政策不是邏輯。
+governance:
+  # Level 1 自動執行的門檻。三個條件必須同時滿足。
+  auto:
+    min_live_months: 6              # 訊號上線滿六個月
+    max_position_weight: 0.02       # 且單一部位不超過總資產 2%
+    require_all_validations: true   # 且通過全部驗證協定
+  # Level 2 需人工確認的觸發條件。
+  confirm:
+    new_signal_days: 180            # 上線未滿此天數一律需確認
+    large_adjustment_weight: 0.03   # 單次調整超過此權重需確認
+    during_regime_shift: true       # regime 切換期間一律需確認
+  # Level 3 僅供研究參考，不得進入下單路徑。
+  research_only:
+    single_source_news: true        # 單一來源新聞驅動
+    agent_conflict: true            # agent 之間有衝突
+    hypothesis_stage: true          # 仍在假設階段
+
+# 訊號融合（SPEC 6）。禁止簡單平均。
+fusion:
+  # Ledoit-Wolf 收縮強度。0 為樣本協方差，1 為完全收縮到對角矩陣。
+  # None 代表由資料自動決定收縮係數。
+  shrinkage: null
+  # 訊號相關性超過此值時視為同一個因子，合併計權避免重壓。
+  correlation_merge_threshold: 0.8
+  # 半衰期衰減的下限。衰減到此值以下的訊號直接移除。
+  min_decayed_weight: 0.05
+
+# 組合建構（SPEC 6）。
+portfolio:
+  target_annual_volatility: 0.15    # 波動率目標化的目標值
+  max_leverage_from_vol_target: 1.0 # 波動率目標化推導出的曝險上限
+  turnover_penalty: 0.001           # 換手率懲罰係數
+  min_position_weight: 0.005        # 低於此權重直接歸零，避免碎股
+
+# 事中監控（SPEC 7.2）。
+monitoring:
+  heartbeat_timeout_seconds: 300    # 心跳中斷超過此秒數進入只平倉模式
+  reconciliation_interval_minutes: 15
+  realized_vol_multiple_for_derisk: 1.5  # 實現波動超過目標幾倍即降槓桿
+  max_orders_per_minute: 10
+  max_price_deviation: 0.05         # 下單價偏離現價超過此比例即拒絕
+
+# 模型風險（SPEC 7.3）。
+model_risk:
+  ic_decay_periods: 5               # 連續幾期 IC 低於下限即隔離訊號
+  min_rolling_ic: 0.0               # IC 下限
+  max_live_backtest_tracking_error: 0.05
+  min_agent_consistency: 0.67       # 低於此值代表任務不適合 LLM

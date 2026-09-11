@@ -17,6 +17,8 @@ dependencies = [
     "pandas>=2.2,<3",
     "pyarrow>=16",
     "redis>=5.0",
+    # Phase 3 起：agent 層。官方 SDK，不用 HTTP 手刻。
+    "anthropic>=1.0",
     # Phase 2 起：統計檢定與回測。
     # statsmodels 提供 ADF/KPSS 的標準實作與臨界值表。自行實作這兩個檢定
     # 需要 MacKinnon 臨界值，出錯機率高且不易察覺，而 SPEC 第 11 節明訂

@@ -10,39 +10,10 @@ import pytest
 from trading_intel.core.errors import ConfigError
 from trading_intel.core.settings import Settings, load_settings
 
-BASE_YAML = """
-display_tz: Asia/Taipei
-data:
-  raw_root: ./data/raw
-  parquet_root: ./data/parquet
-  max_staleness_minutes: 60
-risk:
-  max_position_weight: 0.05
-  max_sector_weight: 0.25
-  max_gross_exposure: 1.0
-  max_net_exposure: 0.6
-  drawdown_derisk: 0.08
-  drawdown_flatten: 0.15
-  adv_participation_cap: 0.05
-  top5_concentration_cap: 0.4
-costs:
-  commission_bps: 1.425
-  slippage_bps: 5.0
-  impact_coefficient: 0.1
-agents:
-  daily_token_budget: 1000000
-  max_calls_per_hour: 200
-  timeout_seconds: 60.0
-  max_retries: 2
-quality:
-  max_staleness_minutes: 1440
-  tw_daily_return_limit: 0.105
-  us_daily_return_limit: 0.50
-  max_missing_session_ratio: 0.02
-  psi_warn: 0.25
-  psi_disable: 0.5
-  cross_source_tolerance: 0.001
-"""
+#: 直接沿用 repo 的 base.yaml，而不是維護一份手寫複本。
+#: 複本會在每次新增設定區塊時默默過期，而過期的 fixture 測的是舊契約。
+REPO_CONFIG_DIR = Path(__file__).resolve().parents[2] / "configs"
+BASE_YAML = (REPO_CONFIG_DIR / "base.yaml").read_text(encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)

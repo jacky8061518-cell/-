@@ -93,6 +93,76 @@ class AgentBudget(BaseModel):
     max_retries: int = Field(ge=0)
 
 
+class AutoLevelRules(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    min_live_months: int = Field(ge=0)
+    max_position_weight: float = Field(gt=0, le=1)
+    require_all_validations: bool
+
+
+class ConfirmLevelRules(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    new_signal_days: int = Field(ge=0)
+    large_adjustment_weight: float = Field(gt=0, le=1)
+    during_regime_shift: bool
+
+
+class ResearchOnlyRules(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    single_source_news: bool
+    agent_conflict: bool
+    hypothesis_stage: bool
+
+
+class Governance(BaseModel):
+    """人機分權三級（SPEC 7.4）。政策寫在設定檔，不寫在程式碼。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    auto: AutoLevelRules
+    confirm: ConfirmLevelRules
+    research_only: ResearchOnlyRules
+
+
+class FusionSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    shrinkage: float | None = None
+    correlation_merge_threshold: float = Field(gt=0, le=1)
+    min_decayed_weight: float = Field(ge=0, le=1)
+
+
+class PortfolioSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    target_annual_volatility: float = Field(gt=0)
+    max_leverage_from_vol_target: float = Field(gt=0)
+    turnover_penalty: float = Field(ge=0)
+    min_position_weight: float = Field(ge=0, le=1)
+
+
+class MonitoringSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    heartbeat_timeout_seconds: int = Field(gt=0)
+    reconciliation_interval_minutes: int = Field(gt=0)
+    realized_vol_multiple_for_derisk: float = Field(gt=1)
+    max_orders_per_minute: int = Field(gt=0)
+    max_price_deviation: float = Field(gt=0, le=1)
+
+
+class ModelRiskSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ic_decay_periods: int = Field(gt=0)
+    min_rolling_ic: float
+    max_live_backtest_tracking_error: float = Field(gt=0)
+    min_agent_consistency: float = Field(gt=0, le=1)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="TI_",
@@ -108,6 +178,11 @@ class Settings(BaseSettings):
     costs: CostModel
     agents: AgentBudget
     quality: QualityLimits
+    governance: Governance
+    fusion: FusionSettings
+    portfolio: PortfolioSettings
+    monitoring: MonitoringSettings
+    model_risk: ModelRiskSettings
 
     @classmethod
     def settings_customise_sources(
