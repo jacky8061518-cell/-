@@ -171,8 +171,10 @@ def ou_half_life(values: npt.ArrayLike, *, alpha: float = DEFAULT_ALPHA) -> floa
     coefficients, *_ = np.linalg.lstsq(design, delta, rcond=None)
     beta = float(coefficients[1])
 
-    if beta >= 0 or beta <= -2:
-        # beta >= 0：無回歸傾向。beta <= -2：超調到發散，模型不適用。
+    if beta >= 0 or beta <= -1:
+        # beta >= 0：無回歸傾向。beta <= -1：1+beta ≤ 0，log1p 定義域之外，
+        # 代表超調已經強到模型無法辨識穩定的回歸速率（原本誤寫成 -2，
+        # 但 -2 到 -1 之間 1+beta 為負值，log1p 會直接丟例外而非回傳 NaN）。
         return float("nan")
 
     decay = math.log1p(beta)

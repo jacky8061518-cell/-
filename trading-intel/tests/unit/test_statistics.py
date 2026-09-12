@@ -113,6 +113,18 @@ def test_random_walk_has_no_half_life() -> None:
     assert math.isnan(ou_half_life(random_walk(n=2000)))
 
 
+def test_strong_overshoot_has_no_half_life_instead_of_crashing() -> None:
+    """beta 落在 (-2, -1] 時，1+beta ≤ 0，math.log1p 定義域錯誤。
+
+    這是真實遇到的 bug：舊版邊界條件只排除了 beta <= -2，
+    誤以為 -2 到 -1 之間仍可估計，但這段區間的 log1p 引數是零或負值，
+    會讓函式直接丟出未預期的例外，而不是依照文件承諾的「無法辨識時回傳 NaN」。
+    """
+    series = np.array([1.0, -0.6, 0.7, -0.9, 0.8, -0.85, 0.75, -0.8] * 30)
+    result = ou_half_life(series)
+    assert math.isnan(result)
+
+
 def test_short_series_has_no_half_life() -> None:
     assert math.isnan(ou_half_life([1.0, 2.0, 3.0]))
 
