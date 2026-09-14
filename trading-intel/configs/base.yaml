@@ -1,0 +1,129 @@
+# 共用預設值。環境設定檔可覆寫個別項目。
+#
+# risk 與 costs 底下的數值為 Claude 提出的假設值，經使用者指示先行填入以解除阻塞。
+# 每一條都附推理，方便日後逐條核定或推翻。上線前必須重新確認（CLAUDE.md 詢問時機第 4 條）。
+# 標註「法定」者為法律規定的稅率，不是假設值。
+
+display_tz: Asia/Taipei
+
+data:
+  raw_root: ./data/raw
+  parquet_root: ./data/parquet
+  max_staleness_minutes: 60
+
+risk:
+  # 單一標的上限 5%：對應約 20 檔的分散度。台股個股單日可跌 10%，
+  # 5% 部位的單日最大衝擊約為總資產 0.5%，屬可承受範圍。
+  max_position_weight: 0.05
+  # 產業上限 25%：台股半導體權重極高，設得比一般市場寬。
+  # 設太低會讓系統無法表達「看好半導體」這種在台股很常見的觀點。
+  max_sector_weight: 0.25
+  # 總曝險 100%：不使用槓桿。研究階段不該靠槓桿放大結果。
+  max_gross_exposure: 1.0
+  # 淨曝險 60%：多空相抵後最多六成方向性曝險，其餘為對沖或現金。
+  max_net_exposure: 0.6
+  # 回撤 8% 減碼：SPEC 7.2 舉例為 3%，但股票策略的正常波動就會觸及 3%，
+  # 會導致頻繁的無謂減碼。8% 大於一般回檔、小於真正的策略失效。
+  drawdown_derisk: 0.08
+  # 回撤 15% 全部平倉並進入人工審核。這是「停下來想一想」的門檻，不是停損。
+  drawdown_flatten: 0.15
+  # 單日成交量參與度上限 5%：超過此比例，下單本身就會推動價格，
+  # 回測結果將無法在實盤重現。
+  adv_participation_cap: 0.05
+  # 前五大部位合計上限 40%：避免分散度在帳面上達標、實質上仍押注少數標的。
+  top5_concentration_cap: 0.4
+
+costs:
+  tw_transaction_tax: 0.003          # 證交稅 0.3%，法定，賣出時課徵
+  tw_daytrade_tax: 0.0015            # 當沖減半 0.15%，法定
+  # 手續費 0.1425% = 14.25 個基點，買賣各課一次。
+  # 註：先前誤填 1.425（少了十倍）已修正。券商折扣後通常約 8.55 bps，
+  # 但回測刻意用全額——寧可高估成本，也不要低估（SPEC 第 12 節）。
+  commission_bps: 14.25
+  # 滑價 5 bps：實際成交價與決策價的差距。流動性佳的大型股較小，
+  # 中小型股更大。這是保守的單一假設值，Phase 2 應改為依標的估計。
+  slippage_bps: 5.0
+  # 市場衝擊係數，用於平方根模型 impact = coef * sqrt(下單量 / 日均量)。
+  # 0.1 是文獻常見起始值，需以實際成交資料校準。
+  impact_coefficient: 0.1
+
+agents:
+  daily_token_budget: 1000000        # 假設值，Phase 3 依實測調整
+  max_calls_per_hour: 200            # 假設值
+  timeout_seconds: 60.0              # 假設值
+  max_retries: 2                     # 逾時或格式錯誤時重試兩次，仍失敗則降級為棄權
+
+# 資料品質閘門（SPEC 3.3）。任一失敗，該標的當日狀態設為 NO_TRADE。
+quality:
+  # 時效性：最新一根 bar 距 asof 超過幾分鐘即視為過期。日頻資料設一天。
+  max_staleness_minutes: 1440
+  # 合理性：單日報酬絕對值上限。台股漲跌幅 10%，留 0.5% 餘裕給計算誤差。
+  tw_daily_return_limit: 0.105
+  # 美股無漲跌幅限制，此為「幾乎必為資料錯誤」的極端門檻。
+  us_daily_return_limit: 0.50
+  # 完整性：一段期間內允許缺漏的交易日比例。
+  max_missing_session_ratio: 0.02
+  # 分布漂移的 PSI 門檻，兩者皆為 SPEC 3.3 明訂。
+  psi_warn: 0.25
+  psi_disable: 0.5
+  # 多源交叉核對：兩來源收盤價差異超過此比例即發 DATA_CONFLICT。
+  cross_source_tolerance: 0.001
+
+# 人機分權三級（SPEC 7.4）。刻意寫在設定檔而非程式碼，因為這是政策不是邏輯。
+governance:
+  # Level 1 自動執行的門檻。三個條件必須同時滿足。
+  auto:
+    min_live_months: 6              # 訊號上線滿六個月
+    max_position_weight: 0.02       # 且單一部位不超過總資產 2%
+    require_all_validations: true   # 且通過全部驗證協定
+  # Level 2 需人工確認的觸發條件。
+  confirm:
+    new_signal_days: 180            # 上線未滿此天數一律需確認
+    large_adjustment_weight: 0.03   # 單次調整超過此權重需確認
+    during_regime_shift: true       # regime 切換期間一律需確認
+  # Level 3 僅供研究參考，不得進入下單路徑。
+  research_only:
+    single_source_news: true        # 單一來源新聞驅動
+    agent_conflict: true            # agent 之間有衝突
+    hypothesis_stage: true          # 仍在假設階段
+
+# 訊號融合（SPEC 6）。禁止簡單平均。
+fusion:
+  # Ledoit-Wolf 收縮強度。0 為樣本協方差，1 為完全收縮到對角矩陣。
+  # None 代表由資料自動決定收縮係數。
+  shrinkage: null
+  # 訊號相關性超過此值時視為同一個因子，合併計權避免重壓。
+  correlation_merge_threshold: 0.8
+  # 半衰期衰減的下限。衰減到此值以下的訊號直接移除。
+  min_decayed_weight: 0.05
+
+# 組合建構（SPEC 6）。
+portfolio:
+  target_annual_volatility: 0.15    # 波動率目標化的目標值
+  max_leverage_from_vol_target: 1.0 # 波動率目標化推導出的曝險上限
+  turnover_penalty: 0.001           # 換手率懲罰係數
+  min_position_weight: 0.005        # 低於此權重直接歸零，避免碎股
+
+# 事中監控（SPEC 7.2）。
+monitoring:
+  heartbeat_timeout_seconds: 300    # 心跳中斷超過此秒數進入只平倉模式
+  reconciliation_interval_minutes: 15
+  realized_vol_multiple_for_derisk: 1.5  # 實現波動超過目標幾倍即降槓桿
+  max_orders_per_minute: 10
+  max_price_deviation: 0.05         # 下單價偏離現價超過此比例即拒絕
+
+# 模型風險（SPEC 7.3）。
+model_risk:
+  ic_decay_periods: 5               # 連續幾期 IC 低於下限即隔離訊號
+  min_rolling_ic: 0.0               # IC 下限
+  max_live_backtest_tracking_error: 0.05
+  min_agent_consistency: 0.67       # 低於此值代表任務不適合 LLM
+
+# 告警抗疲勞（SPEC 8.2）。告警疲勞是這類系統最常見的死因。
+alerting:
+  # 每小時每個標的的告警上限，超過改為彙整。
+  max_alerts_per_hour: 5
+  # 過去這麼多小時內已經告知過的內容降級（novelty 檢查）。
+  novelty_window_hours: 24
+  # 兩則告警視為「同一事件」的內容相似度門檻。
+  dedup_similarity_threshold: 0.85

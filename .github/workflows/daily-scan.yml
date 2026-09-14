@@ -1,0 +1,36 @@
+name: Daily Market Scan
+
+on:
+  schedule:
+    # 每個台股交易日下午 14:30 台北時間（UTC 06:30）跑一次，盤後資料較完整。
+    - cron: "30 6 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trading-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: make install
+      - name: 執行每日掃描
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python scripts/daily_run.py
+      - name: 提交掃描結果
+        run: |
+          git config user.name "trading-intel-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add runs/
+          [ -f data/hypotheses.json ] && git add data/hypotheses.json
+          git diff --staged --quiet || git commit -m "每日掃描：$(date -u +%Y-%m-%d)"
+          git push
