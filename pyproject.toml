@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sector-rotation-research"
-version = "0.8.0"
-description = "Fund-flow-first Taiwan research with institutional Sankey, radar, timelines, reasons, and price confirmation."
+version = "0.9.0"
+description = "Multi-agent market intelligence desk: continuous scanning, cross-validated evidence, risk-budgeted signal cards, and the underlying rotation research lab."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
