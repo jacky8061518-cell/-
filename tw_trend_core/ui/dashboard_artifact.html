@@ -1,0 +1,414 @@
+<title>TW Trend Core</title>
+<style>
+  :root {
+    --bg: #F1F3F4;
+    --surface: #FFFFFF;
+    --surface-2: #F7F8F9;
+    --border: #E1E4E6;
+    --ink: #1B2027;
+    --muted: #5B6570;
+    --faint: #8B939C;
+    --accent: #C07C2C;
+    --accent-ink: #8A5A1E;
+    --gauge-low: #2E6DA4;
+    --positive: #1E9E6D;
+    --negative: #D1453A;
+    --neutral: #6B7280;
+    --track: #E6E2DC;
+    --shadow: 0 1px 2px rgba(27,32,39,0.06), 0 1px 1px rgba(27,32,39,0.04);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171B;
+      --surface: #1C2026;
+      --surface-2: #21262D;
+      --border: #2A2F36;
+      --ink: #ECEEF0;
+      --muted: #9AA3AC;
+      --faint: #6B7480;
+      --accent: #C57F35;
+      --accent-ink: #E3A968;
+      --gauge-low: #4A8BC9;
+      --positive: #33AB7E;
+      --negative: #DD5B4F;
+      --neutral: #9AA3AC;
+      --track: #2C3138;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14171B;
+    --surface: #1C2026;
+    --surface-2: #21262D;
+    --border: #2A2F36;
+    --ink: #ECEEF0;
+    --muted: #9AA3AC;
+    --faint: #6B7480;
+    --accent: #C57F35;
+    --accent-ink: #E3A968;
+    --gauge-low: #4A8BC9;
+    --positive: #33AB7E;
+    --negative: #DD5B4F;
+    --neutral: #9AA3AC;
+    --track: #2C3138;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+    padding-inline: 16px;
+    padding-block: 20px 48px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  header.page { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--accent-ink); text-transform: uppercase;
+  }
+
+  h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  .subtitle { font-size: 13.5px; color: var(--muted); margin: 2px 0 0; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+  }
+  .stat-tile .label { font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-tile .value { font-size: 19px; font-weight: 700; margin-top: 2px; }
+  .stat-tile.accent .value { color: var(--accent-ink); }
+
+  section { margin-top: 28px; }
+
+  h2 {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 4px;
+  }
+  .section-note { font-size: 12px; color: var(--faint); margin: 0 0 10px; }
+
+  /* ---- 異常標的總覽：表格 ---- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+    max-height: 520px;
+    overflow-y: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 620px; }
+  thead th {
+    position: sticky; top: 0;
+    background: var(--surface-2);
+    text-align: left;
+    padding: 9px 12px;
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+    z-index: 1;
+  }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.analyzed { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .stock-name { font-weight: 600; }
+  .stock-code { color: var(--faint); font-size: 11px; }
+  .market-badge {
+    font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 100px;
+    background: var(--surface-2); color: var(--muted); white-space: nowrap;
+  }
+  .analyzed-badge {
+    font-size: 10px; font-weight: 700; color: var(--accent-ink);
+    white-space: nowrap;
+  }
+  .dir-up { color: var(--accent-ink); }
+  .dir-down { color: var(--gauge-low); }
+  td.num { text-align: right; }
+
+  .empty {
+    color: var(--faint); font-size: 13px; padding: 18px; text-align: center;
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
+  }
+
+  /* ---- 信號牆 ---- */
+  .signal-list { display: flex; flex-direction: column; gap: 10px; }
+  .signal-card {
+    background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--neutral);
+    border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .signal-card.conf-high { border-left-color: var(--positive); }
+  .signal-card.conf-mid { border-left-color: var(--accent); }
+  .signal-card.conf-low { border-left-color: var(--negative); }
+
+  .signal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .signal-symbol { font-weight: 700; font-size: 14.5px; }
+  .signal-industry { font-size: 11px; color: var(--faint); }
+
+  .action-badge {
+    font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 100px; letter-spacing: 0.02em;
+  }
+  .action-badge.buy { background: color-mix(in srgb, var(--positive) 16%, transparent); color: var(--positive); }
+  .action-badge.sell { background: color-mix(in srgb, var(--negative) 16%, transparent); color: var(--negative); }
+  .action-badge.hold { background: color-mix(in srgb, var(--neutral) 18%, transparent); color: var(--neutral); }
+
+  .signal-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .signal-meta b { color: var(--ink); font-weight: 600; }
+
+  .core-reason {
+    font-size: 13px; line-height: 1.6; color: var(--ink);
+    background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+  }
+  .core-reason .icon { color: var(--accent-ink); }
+
+  details.full-reasoning { font-size: 12.5px; }
+  details.full-reasoning summary { cursor: pointer; color: var(--accent-ink); font-weight: 600; list-style: none; }
+  details.full-reasoning summary::-webkit-details-marker { display: none; }
+  details.full-reasoning summary::before { content: "▸ "; }
+  details.full-reasoning[open] summary::before { content: "▾ "; }
+  details.full-reasoning .body { margin-top: 8px; color: var(--muted); line-height: 1.7; white-space: pre-wrap; }
+
+  footer {
+    margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--border);
+    font-size: 11.5px; color: var(--faint); line-height: 1.6;
+  }
+
+  @media (max-width: 460px) {
+    h1 { font-size: 22px; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+
+<header class="page">
+  <div class="eyebrow">TW Trend Core</div>
+  <h1>台股全市場訊號儀表板</h1>
+  <p class="subtitle">上市＋上櫃全個股 Z-Score 異常偵測 × AI 首席策略官分析</p>
+  <div class="stat-row" id="statRow">
+    <div class="stat-tile"><div class="label">掃描標的</div><div class="value mono">—</div></div>
+    <div class="stat-tile"><div class="label">資料日期</div><div class="value mono">—</div></div>
+    <div class="stat-tile accent"><div class="label">異常標的</div><div class="value mono">—</div></div>
+    <div class="stat-tile"><div class="label">已分析</div><div class="value mono">—</div></div>
+  </div>
+</header>
+
+<section>
+  <h2>異常標的總覽</h2>
+  <p class="section-note">依 |Z-Score| 由大到小排序；橘底列為已完成 AI 分析的主要標的</p>
+  <div class="table-wrap">
+    <table id="anomalyTable">
+      <thead>
+        <tr>
+          <th>標的</th><th>市場</th><th>產業</th>
+          <th style="text-align:right">價格</th><th style="text-align:right">Z-Score</th><th>訊號</th>
+        </tr>
+      </thead>
+      <tbody id="anomalyBody">
+        <tr><td colspan="6" class="empty">正在連線讀取最新掃描資料…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>主要標的分析（信號牆）</h2>
+  <p class="section-note">全市場異常標的數量較多，優先針對市值較大、資訊較完整的主要標的進行深度分析</p>
+  <div class="signal-list" id="signalList">
+    <div class="empty">尚無 AI 分析紀錄</div>
+  </div>
+</section>
+
+<footer>
+  本頁面所有交易建議皆由 AI 生成，僅供研究與學習用途，不構成投資建議。<br>
+  台股個股（尤其中小型股）之新聞查證覆蓋率有限，信心評分已反映此不確定性。<br>
+  資料來源：台灣證券交易所／證券櫃檯買賣中心公開資訊、Yahoo Finance 與 Claude 分析。
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var ZSCORE_DOMAIN = 3.5;
+  var ZSCORE_THRESHOLD = 2;
+
+  function fmtPrice(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return Number(v).toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtZ(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    var n = Number(v);
+    return (n >= 0 ? "+" : "") + n.toFixed(2);
+  }
+  function fmtPct(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return Math.round(Number(v) * 100) + "%";
+  }
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return iso; }
+  }
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function confTier(conf) {
+    if (conf === null || conf === undefined) return "conf-mid";
+    if (conf >= 0.65) return "conf-high";
+    if (conf >= 0.45) return "conf-mid";
+    return "conf-low";
+  }
+  function actionInfo(action) {
+    var a = (action || "").trim().toUpperCase();
+    if (a === "BUY") return { cls: "buy", label: "Buy" };
+    if (a === "SELL") return { cls: "sell", label: "Sell" };
+    if (a === "HOLD") return { cls: "hold", label: "Hold" };
+    return { cls: "hold", label: action || "N/A" };
+  }
+  function coreReason(text) {
+    if (!text) return "";
+    var m = /Reasoning:\s*([\s\S]+)/i.exec(text);
+    var body = m ? m[1].trim() : text.trim();
+    var sentences = body.split(/(?<=[。！？.!?])\s*/).filter(Boolean);
+    return sentences.slice(0, 2).join("");
+  }
+
+  function renderStats(meta) {
+    var tiles = document.querySelectorAll("#statRow .value");
+    if (!meta) return;
+    tiles[0].textContent = meta.universe_size != null ? meta.universe_size : "—";
+    tiles[1].textContent = meta.price_date || "—";
+    tiles[2].textContent = meta.anomaly_count != null ? meta.anomaly_count : "—";
+    tiles[3].textContent = meta.analyzed_count != null ? meta.analyzed_count : "—";
+  }
+
+  function renderAnomalyTable(anomalies, analyzedCodes) {
+    var body = document.getElementById("anomalyBody");
+    if (!anomalies || !anomalies.length) {
+      body.innerHTML = '<tr><td colspan="6" class="empty">目前無異常標的</td></tr>';
+      return;
+    }
+    var sorted = anomalies.slice().sort(function (a, b) {
+      return Math.abs(b.z_score || 0) - Math.abs(a.z_score || 0);
+    });
+    body.innerHTML = sorted.map(function (a) {
+      var isAnalyzed = analyzedCodes.has(a.code);
+      var dirCls = (a.z_score || 0) >= 0 ? "dir-up" : "dir-down";
+      return '<tr class="' + (isAnalyzed ? "analyzed" : "") + '">' +
+        '<td><span class="stock-name">' + escapeHtml(a.name) + '</span> <span class="stock-code mono">' + escapeHtml(a.code) + '</span>' +
+          (isAnalyzed ? ' <span class="analyzed-badge">★已分析</span>' : '') + '</td>' +
+        '<td><span class="market-badge">' + escapeHtml(a.market) + '</span></td>' +
+        '<td>' + escapeHtml(a.industry) + '</td>' +
+        '<td class="num mono">' + fmtPrice(a.price) + '</td>' +
+        '<td class="num mono ' + dirCls + '">' + fmtZ(a.z_score) + '</td>' +
+        '<td>' + (a.signal === "OVERBOUGHT" ? "超買" : a.signal === "OVERSOLD" ? "超賣" : a.signal) + '</td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  function renderSignals(docs) {
+    var el = document.getElementById("signalList");
+    if (!docs.length) {
+      el.innerHTML = '<div class="empty">尚無 AI 分析紀錄</div>';
+      return;
+    }
+    docs.sort(function (a, b) { return Math.abs(b.z_score || 0) - Math.abs(a.z_score || 0); });
+    el.innerHTML = docs.map(function (d) {
+      var action = actionInfo(d.action);
+      var confCls = confTier(d.confidence);
+      var reason = d.core_reason || coreReason(d.reasoning) || "（無摘要）";
+      var full = d.reasoning || "（無完整推理內容）";
+      var entryLine = [];
+      if (d.entry !== null && d.entry !== undefined) entryLine.push("進場 " + fmtPrice(d.entry));
+      if (d.take_profit !== null && d.take_profit !== undefined) entryLine.push("停利 " + fmtPrice(d.take_profit));
+      if (d.stop_loss !== null && d.stop_loss !== undefined) entryLine.push("停損 " + fmtPrice(d.stop_loss));
+
+      return '<div class="signal-card ' + confCls + '">' +
+        '<div class="signal-head">' +
+          '<span class="signal-symbol">' + escapeHtml(d.name) + ' <span class="mono" style="color:var(--faint);font-weight:500;">' + escapeHtml(d.code) + '</span></span>' +
+          '<span class="action-badge ' + action.cls + '">' + action.label + '</span>' +
+          '<span class="signal-industry">' + escapeHtml(d.industry || '') + '</span>' +
+        '</div>' +
+        '<div class="signal-meta">' +
+          '<span>Z-Score <b class="mono">' + fmtZ(d.z_score) + '</b></span>' +
+          '<span>信心 <b class="mono">' + fmtPct(d.confidence) + '</b></span>' +
+          (entryLine.length ? '<span>' + entryLine.join('　') + '</span>' : '') +
+        '</div>' +
+        '<div class="core-reason"><span class="icon">🔎</span> ' + escapeHtml(reason) + '</div>' +
+        '<details class="full-reasoning"><summary>查看完整推理內容</summary><div class="body">' + escapeHtml(full) + '</div></details>' +
+      '</div>';
+    }).join("");
+  }
+
+  function boot() {
+    if (!window.claude || typeof window.claude.use !== "function") {
+      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="6" class="empty">此檢視環境不支援即時資料</td></tr>';
+      return;
+    }
+    window.claude.use("db").then(function (db) {
+      if (!db) {
+        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="6" class="empty">無法連線資料庫</td></tr>';
+        return;
+      }
+
+      var latestAnalyzedCodes = new Set();
+
+      function rerenderTable(meta) {
+        if (meta && meta.anomalies) renderAnomalyTable(meta.anomalies, latestAnalyzedCodes);
+      }
+      var lastMeta = null;
+
+      db.doc("meta/overview").onSnapshot(function (snap) {
+        lastMeta = snap.exists ? snap.data() : null;
+        renderStats(lastMeta);
+        rerenderTable(lastMeta);
+      });
+
+      db.collection("signals").orderBy("z_score", "desc").limit(50).onSnapshot(function (snap) {
+        var docs = snap.docs.map(function (d) { return d.data(); });
+        latestAnalyzedCodes = new Set(docs.map(function (d) { return d.code; }));
+        renderSignals(docs);
+        rerenderTable(lastMeta);
+      }, function (err) {
+        document.getElementById("signalList").innerHTML = '<div class="empty">讀取失敗：' + escapeHtml(err.message) + '</div>';
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
