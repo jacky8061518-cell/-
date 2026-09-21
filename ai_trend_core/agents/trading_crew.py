@@ -1,6 +1,6 @@
 """
 agents/trading_crew.py
-AI 智能體系統：使用 CrewAI 架構，指定 Claude-3-5-Sonnet 作為大腦，
+AI 智能體系統：使用 CrewAI 架構，指定 Claude Sonnet 作為大腦，
 由「市場偵察員」「情緒分析師」「首席策略官」三個智能體協作產出交易建議。
 """
 
@@ -9,18 +9,17 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from crewai import Agent, Crew, Process, Task
+from crewai import LLM, Agent, Crew, Process, Task
 from crewai.tools import tool
 from duckduckgo_search import DDGS
-from langchain_anthropic import ChatAnthropic
 
 from agents.parsing import parse_strategist_output
 
 if TYPE_CHECKING:
     from core.quant_engine import MarketSnapshot
 
-# 可透過環境變數覆寫模型名稱，預設使用 Claude 3.5 Sonnet
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+# 可透過環境變數覆寫模型名稱，預設使用 Claude Sonnet 5
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 
 
 @tool("新聞搜尋工具")
@@ -37,12 +36,18 @@ def search_news(query: str) -> str:
     return "\n".join(lines)
 
 
-def _build_llm() -> ChatAnthropic:
-    """建立作為所有智能體大腦的 Claude 3.5 Sonnet 模型。"""
-    return ChatAnthropic(model=ANTHROPIC_MODEL, temperature=0.3)
+def _build_llm() -> LLM:
+    """建立作為所有智能體大腦的 Claude Sonnet 模型（使用 CrewAI 原生 LLM，經由 Anthropic 官方 API 呼叫）。
+
+    註：刻意不傳入 temperature —— 目前安裝的 anthropic SDK 已從
+    Messages.create() 移除該參數，而 crewai 只要偵測到 temperature 有值
+    就會原樣轉傳，兩者版本組合會導致呼叫失敗（TypeError: unexpected
+    keyword argument 'temperature'）。留白讓 crewai 略過此參數即可避開。
+    """
+    return LLM(model=ANTHROPIC_MODEL)
 
 
-def build_agents(llm: ChatAnthropic) -> tuple[Agent, Agent, Agent]:
+def build_agents(llm: LLM) -> tuple[Agent, Agent, Agent]:
     """建立市場偵察員、情緒分析師、首席策略官三個智能體。"""
     scout = Agent(
         role="市場偵察員",

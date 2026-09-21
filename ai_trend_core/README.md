@@ -47,7 +47,7 @@ pip install -r requirements.txt
 
 ### 1.3 設定 API Key
 
-CrewAI 的三個智能體皆以 Claude 3.5 Sonnet 作為大腦，需設定 Anthropic API Key。
+CrewAI 的三個智能體皆以 Claude Sonnet 作為大腦，需設定 Anthropic API Key。
 情緒分析師使用 DuckDuckGo 搜尋，無需額外金鑰。
 
 於 `ai_trend_core/` 目錄下建立 `.env` 檔案（或直接匯出環境變數）：
@@ -56,7 +56,7 @@ CrewAI 的三個智能體皆以 Claude 3.5 Sonnet 作為大腦，需設定 Anthr
 export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxx"
 
 # 選填：覆寫預設使用的 Claude 模型
-export ANTHROPIC_MODEL="claude-3-5-sonnet-latest"
+export ANTHROPIC_MODEL="claude-sonnet-5"
 ```
 
 ### 1.4 設定 Telegram 即時警報（選用）

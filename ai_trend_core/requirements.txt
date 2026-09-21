@@ -3,7 +3,6 @@ yfinance
 ccxt
 streamlit
 crewai
-langchain_anthropic
 plotly
 duckduckgo-search
 requests
