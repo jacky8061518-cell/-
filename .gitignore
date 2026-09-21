@@ -23,3 +23,8 @@ data/snapshots/
 # AI Trend Core（ai_trend_core/）執行期產生的檔案
 ai_trend_core/data/*.db
 ai_trend_core/data/*.json
+
+# TW Trend Core（tw_trend_core/）執行期產生的檔案：自有價格快取與掃描結果，
+# 與 data/databases/tw/ 下 sector-rotation-research 共用的檔案無關
+tw_trend_core/data/*.parquet
+tw_trend_core/data/*.json
