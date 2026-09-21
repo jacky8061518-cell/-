@@ -7,13 +7,14 @@ AI 智能體系統：使用 CrewAI 架構，指定 Claude-3-5-Sonnet 作為大�
 from __future__ import annotations
 
 import os
-import re
 from typing import TYPE_CHECKING, Any
 
 from crewai import Agent, Crew, Process, Task
 from crewai.tools import tool
 from duckduckgo_search import DDGS
 from langchain_anthropic import ChatAnthropic
+
+from agents.parsing import parse_strategist_output
 
 if TYPE_CHECKING:
     from core.quant_engine import MarketSnapshot
@@ -116,33 +117,6 @@ def build_tasks(
         context=[scout_task, sentiment_task],
     )
     return scout_task, sentiment_task, strategist_task
-
-
-def parse_strategist_output(text: str) -> dict[str, Any]:
-    """從首席策略官的輸出文字中解析出結構化欄位。"""
-    patterns = {
-        "action": r"Action:\s*(\w+)",
-        "entry": r"Entry:\s*([\d.,]+)",
-        "take_profit": r"TP:\s*([\d.,]+)",
-        "stop_loss": r"SL:\s*([\d.,]+)",
-        "confidence": r"Confidence:\s*([\d.]+)",
-        "reasoning": r"Reasoning:\s*(.+)",
-    }
-    parsed: dict[str, Any] = {}
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if not match:
-            parsed[key] = None
-            continue
-        value = match.group(1).strip()
-        if key in {"entry", "take_profit", "stop_loss", "confidence"}:
-            try:
-                parsed[key] = float(value.replace(",", ""))
-            except ValueError:
-                parsed[key] = None
-        else:
-            parsed[key] = value
-    return parsed
 
 
 def analyze_opportunity(symbol: str, snapshot: "MarketSnapshot") -> dict[str, Any]:

@@ -13,7 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import database
+from agents.parsing import summarize_reasoning
+from core import database, notifier
 from core.quant_engine import DEFAULT_SYMBOLS, MarketSnapshot, get_anomalies, scan_market
 
 logging.basicConfig(
@@ -23,6 +24,9 @@ logging.basicConfig(
 logger = logging.getLogger("ai_trend_core")
 
 SCAN_INTERVAL_SECONDS = 15 * 60
+
+# 信心評分超過此門檻時，主動透過 Telegram 推播警報
+TELEGRAM_CONFIDENCE_THRESHOLD = 0.8
 
 
 def _handle_anomaly(snapshot: MarketSnapshot) -> None:
@@ -62,6 +66,21 @@ def _handle_anomaly(snapshot: MarketSnapshot) -> None:
         "已儲存 %s 的 AI 建議：Action=%s Confidence=%s",
         snapshot.symbol, result.get("action"), result.get("confidence"),
     )
+
+    confidence = result.get("confidence")
+    if confidence is not None and confidence > TELEGRAM_CONFIDENCE_THRESHOLD:
+        message = notifier.format_signal_alert(
+            symbol=snapshot.symbol,
+            price=snapshot.price,
+            z_score=snapshot.z_score,
+            action=result.get("action") or "N/A",
+            confidence=confidence,
+            take_profit=result.get("take_profit"),
+            stop_loss=result.get("stop_loss"),
+            reasoning_summary=summarize_reasoning(result.get("final_report")),
+        )
+        if notifier.send_telegram_message(message):
+            logger.info("已透過 Telegram 推播 %s 的高信心訊號。", snapshot.symbol)
 
 
 def run_once(symbols: list[str] | None = None) -> None:

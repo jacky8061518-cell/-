@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from agents.parsing import summarize_reasoning
 from core import database
 from core.quant_engine import DEFAULT_SYMBOLS, detect_signal, scan_market
 
@@ -84,6 +85,7 @@ else:
 
         action = sig.get("action") or "N/A"
         action_color = ACTION_COLORS.get(action.strip().upper(), ACTION_DEFAULT_COLOR)
+        core_reason = summarize_reasoning(sig.get("reasoning")) or "無資料"
 
         st.markdown(
             f"""
@@ -93,7 +95,8 @@ else:
                 動作：<b style="color:{action_color};">{action}</b>
                 信心評分：<b>{confidence:.0%}</b>
                 <span style="color:gray;">{sig['created_at']}</span><br/>
-                進場：{sig.get('entry')}　停利：{sig.get('take_profit')}　停損：{sig.get('stop_loss')}
+                進場：{sig.get('entry')}　停利：{sig.get('take_profit')}　停損：{sig.get('stop_loss')}<br/>
+                🔎 AI 決策核心理由：{core_reason}
             </div>
             """,
             unsafe_allow_html=True,

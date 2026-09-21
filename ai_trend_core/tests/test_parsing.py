@@ -1,15 +1,21 @@
 """
-tests/test_trading_crew_parser.py
-針對 agents/trading_crew.py 中 parse_strategist_output 解析器的單元測試。
-這是 CrewAI 真實對話輸出與資料庫結構化欄位之間唯一的橋樑，
-若解析器在真實 LLM 輸出的各種變化格式下出錯，會導致訊號靜默寫入失敗的欄位。
+tests/test_parsing.py
+針對 agents/parsing.py 的單元測試：parse_strategist_output 是 CrewAI 真實對話輸出
+與資料庫結構化欄位之間唯一的橋樑，summarize_reasoning 則是 UI／Telegram 警報
+精簡摘要的來源。若這兩者在真實 LLM 輸出的各種變化格式下出錯，
+會導致訊號靜默寫入失敗的欄位，或警報訊息顯示空白。
 """
 
 from __future__ import annotations
 
 import pytest
 
-from agents.trading_crew import parse_strategist_output
+from agents.parsing import parse_strategist_output, summarize_reasoning
+
+
+# ---------------------------------------------------------------------------
+# parse_strategist_output
+# ---------------------------------------------------------------------------
 
 
 def test_parse_full_well_formed_output():
@@ -74,3 +80,43 @@ def test_parse_reasoning_captures_multiline_text():
     parsed = parse_strategist_output(text)
     assert "第一行理由" in parsed["reasoning"]
     assert "第二行補充說明" in parsed["reasoning"]
+
+
+# ---------------------------------------------------------------------------
+# summarize_reasoning
+# ---------------------------------------------------------------------------
+
+
+def test_summarize_reasoning_extracts_text_after_label():
+    text = (
+        "Action: Sell\nEntry: 100\nTP: 90\nSL: 110\nConfidence: 0.9\n"
+        "Reasoning: 價格顯著超出布林上軌，統計上處於極端值。新聞情緒同步轉空，兩者一致指向做空。"
+    )
+    summary = summarize_reasoning(text)
+    assert "統計上處於極端值" in summary
+    assert "Action:" not in summary
+
+
+def test_summarize_reasoning_limits_to_max_sentences():
+    text = "Reasoning: 第一句話。第二句話。第三句話不應出現。"
+    summary = summarize_reasoning(text, max_sentences=2)
+    assert "第一句話" in summary
+    assert "第二句話" in summary
+    assert "第三句話不應出現" not in summary
+
+
+def test_summarize_reasoning_without_label_falls_back_to_whole_text():
+    """若輸出沒有『Reasoning:』標籤（例如解析器攔不到格式跑掉的內容），仍應回傳可讀摘要而非空字串。"""
+    summary = summarize_reasoning("這是一段沒有標籤的純文字說明。內容依然重要。")
+    assert "這是一段沒有標籤的純文字說明" in summary
+
+
+def test_summarize_reasoning_handles_none_and_empty():
+    assert summarize_reasoning(None) == ""
+    assert summarize_reasoning("") == ""
+
+
+def test_summarize_reasoning_handles_text_without_sentence_terminator():
+    """若文字沒有句號等結尾標點（例如被截斷），仍應原樣回傳而非拋錯或回傳空字串。"""
+    summary = summarize_reasoning("Reasoning: 這段文字沒有結尾標點")
+    assert summary == "這段文字沒有結尾標點"
