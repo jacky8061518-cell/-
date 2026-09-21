@@ -16,7 +16,8 @@ ai_trend_core/
 │   ├── parsing.py         # 純文字解析：結構化欄位解析、理由摘要（不依賴 crewai）
 │   └── trading_crew.py    # CrewAI：市場偵察員 / 情緒分析師 / 首席策略官
 ├── ui/                    # 前端界面
-│   └── app.py             # Streamlit 可視化儀表板
+│   ├── app.py                  # Streamlit 可視化儀表板（需自行啟動本機伺服器）
+│   └── dashboard_artifact.html # 持久化網頁儀表板原始碼（見下方「4. 持久化網頁儀表板」）
 ├── tests/                 # pytest 單元測試
 ├── data/                  # 資料庫檔案（trading_signals.db 執行時自動產生）
 ├── main_loop.py           # 24/7 循環執行腳本（每 15 分鐘掃描一次）
@@ -135,7 +136,8 @@ python main_loop.py
 ```
 
 此程序會每 15 分鐘：
-1. 呼叫 `quant_engine` 對預設標的（BTC-USD、ETH-USD、NVDA、TSLA、AAPL）進行全市場掃描。
+1. 呼叫 `quant_engine` 對預設標的（BTC-USD、ETH-USD、SOL-USD、NVDA、TSLA、AAPL、MSFT、
+   GOOGL、AMZN、META、AMD）進行全市場掃描。
 2. 若發現 Z-Score 異常（超買 / 超賣），立即啟動 CrewAI 智能體團隊進行深度分析。
 3. 將 AI 交易建議（Action / Entry / TP / SL / 信心評分 / 理由）連同當時市場數據存入
    `data/trading_signals.db`。
@@ -154,6 +156,26 @@ streamlit run ui/app.py
   邊框依信心值高低分級，並附上「AI 決策核心理由」精簡摘要。
 - **圖表分析**：帶有布林帶、均線與超買 / 超賣異常標註點的 Plotly K 線圖。
 - **AI 思考過程**：展示情緒分析師與首席策略官的完整推理內容。
+
+### 2.5 持久化網頁儀表板（推薦：不想開伺服器、每天直接打開連結看）
+
+`ui/app.py` 需要你自己啟動一個本機 Streamlit 伺服器才能看，只要沒開著就打不開。
+如果你只是想要「一個每天可以直接打開的網址」，改用 `ui/dashboard_artifact.html`：
+這是一個發布在 claude.ai 上的 Artifact 頁面，資料存在該 Artifact 自己的雲端資料庫，
+不需要你本機開任何伺服器，手機、電腦隨時打開連結都能看到最新狀態。
+
+運作方式：
+1. 請 Claude Code 用 `Artifact` 工具把 `ui/dashboard_artifact.html` 發布出去
+   （需宣告 `capabilities: {"db": {}}`），拿到一個 `https://claude.ai/artifact/...` 連結。
+2. 之後每次你請 Claude Code 執行「手動智慧模式」（見 2.1）掃描並分析後，
+   請它同時用 `ArtifactData` 工具把最新的 `market_snapshot`（各標的最新價格 / Z-Score）
+   與 `signals`（AI 分析結果）寫入該 Artifact 的資料庫，頁面會自動反映最新資料，
+   不需要重新發布。
+3. 這個連結預設只有你自己（該 Artifact 的擁有者）能打開；若要分享給別人看，
+   需從頁面右上角的分享選單自行設定，Claude Code 無法代為變更權限。
+
+若打不開這個連結，最常見的原因是瀏覽器 / App 沒有登入你自己的 Claude 帳號——
+資料庫功能需要登入才能讀取。
 
 ## 3. 執行測試
 

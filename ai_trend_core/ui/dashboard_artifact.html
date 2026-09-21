@@ -1,0 +1,557 @@
+<title>AI Trend Core</title>
+<style>
+  :root {
+    --bg: #F1F3F4;
+    --surface: #FFFFFF;
+    --surface-2: #F7F8F9;
+    --border: #E1E4E6;
+    --ink: #1B2027;
+    --muted: #5B6570;
+    --faint: #8B939C;
+    --accent: #C07C2C;
+    --accent-ink: #8A5A1E;
+    --gauge-low: #2E6DA4;
+    --positive: #1E9E6D;
+    --negative: #D1453A;
+    --neutral: #6B7280;
+    --track: #E6E2DC;
+    --shadow: 0 1px 2px rgba(27,32,39,0.06), 0 1px 1px rgba(27,32,39,0.04);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171B;
+      --surface: #1C2026;
+      --surface-2: #21262D;
+      --border: #2A2F36;
+      --ink: #ECEEF0;
+      --muted: #9AA3AC;
+      --faint: #6B7480;
+      --accent: #C57F35;
+      --accent-ink: #E3A968;
+      --gauge-low: #4A8BC9;
+      --positive: #33AB7E;
+      --negative: #DD5B4F;
+      --neutral: #9AA3AC;
+      --track: #2C3138;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14171B;
+    --surface: #1C2026;
+    --surface-2: #21262D;
+    --border: #2A2F36;
+    --ink: #ECEEF0;
+    --muted: #9AA3AC;
+    --faint: #6B7480;
+    --accent: #C57F35;
+    --accent-ink: #E3A968;
+    --gauge-low: #4A8BC9;
+    --positive: #33AB7E;
+    --negative: #DD5B4F;
+    --neutral: #9AA3AC;
+    --track: #2C3138;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+    padding-inline: 16px;
+    padding-block: 20px 48px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  header.page {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 20px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent-ink);
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .subtitle {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 2px 0 0;
+  }
+
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 12.5px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--positive);
+    flex-shrink: 0;
+  }
+  .status-dot.stale { background: var(--faint); }
+
+  .status-strip b { color: var(--ink); font-weight: 600; }
+  .status-strip .divider { color: var(--border); }
+
+  section { margin-top: 28px; }
+
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  /* ---- 即時看板：ticker tiles ---- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+  }
+
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tile-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .tile-symbol {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+  }
+
+  .tile-price {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 100px;
+    letter-spacing: 0.02em;
+    width: fit-content;
+  }
+  .pill.risk-high { background: color-mix(in srgb, var(--negative) 16%, transparent); color: var(--negative); }
+  .pill.risk-elevated { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-ink); }
+  .pill.risk-normal { background: color-mix(in srgb, var(--positive) 16%, transparent); color: var(--positive); }
+
+  .gauge-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gauge-value {
+    font-size: 12.5px;
+    font-weight: 600;
+    width: 52px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .gauge-svg { flex: 1; min-width: 0; }
+
+  .empty {
+    color: var(--faint);
+    font-size: 13px;
+    padding: 18px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+
+  /* ---- 信號牆 ---- */
+  .signal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .signal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--neutral);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .signal-card.conf-high { border-left-color: var(--positive); }
+  .signal-card.conf-mid { border-left-color: var(--accent); }
+  .signal-card.conf-low { border-left-color: var(--negative); }
+
+  .signal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .signal-symbol { font-weight: 700; font-size: 14.5px; }
+
+  .action-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 100px;
+    letter-spacing: 0.02em;
+  }
+  .action-badge.buy { background: color-mix(in srgb, var(--positive) 16%, transparent); color: var(--positive); }
+  .action-badge.sell { background: color-mix(in srgb, var(--negative) 16%, transparent); color: var(--negative); }
+  .action-badge.hold { background: color-mix(in srgb, var(--neutral) 18%, transparent); color: var(--neutral); }
+
+  .signal-time {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--faint);
+  }
+
+  .signal-meta {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .signal-meta b { color: var(--ink); font-weight: 600; }
+
+  .core-reason {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+  }
+  .core-reason .icon { color: var(--accent-ink); }
+
+  details.full-reasoning { font-size: 12.5px; }
+  details.full-reasoning summary {
+    cursor: pointer;
+    color: var(--accent-ink);
+    font-weight: 600;
+    list-style: none;
+  }
+  details.full-reasoning summary::-webkit-details-marker { display: none; }
+  details.full-reasoning summary::before { content: "▸ "; }
+  details.full-reasoning[open] summary::before { content: "▾ "; }
+  details.full-reasoning .body {
+    margin-top: 8px;
+    color: var(--muted);
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  footer {
+    margin-top: 36px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--faint);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 460px) {
+    .tiles { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 22px; }
+  }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+
+<header class="page">
+  <div class="eyebrow">AI Trend Core</div>
+  <h1>市場訊號儀表板</h1>
+  <p class="subtitle">Z-Score 異常偵測 × AI 首席策略官分析</p>
+  <div class="status-strip" id="statusStrip">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">正在載入資料…</span>
+  </div>
+</header>
+
+<section>
+  <h2>即時看板</h2>
+  <div class="tiles" id="tiles">
+    <div class="empty">正在連線讀取最新掃描資料…</div>
+  </div>
+</section>
+
+<section>
+  <h2>信號牆</h2>
+  <div class="signal-list" id="signalList">
+    <div class="empty">尚無 AI 分析紀錄</div>
+  </div>
+</section>
+
+<footer>
+  本頁面所有交易建議皆由 AI 生成，僅供研究與學習用途，不構成投資建議。<br>
+  資料來源：AI Trend Core 量化引擎（Yahoo Finance）與 Claude 分析。
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var ZSCORE_DOMAIN = 3.5;
+  var ZSCORE_THRESHOLD = 2;
+
+  function fmtPrice(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return Number(v).toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtZ(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    var n = Number(v);
+    return (n >= 0 ? "+" : "") + n.toFixed(2);
+  }
+
+  function fmtPct(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return Math.round(Number(v) * 100) + "%";
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return iso; }
+  }
+
+  function riskTier(z) {
+    var az = Math.abs(z || 0);
+    if (az >= 2.5) return { cls: "risk-high", label: "高風險" };
+    if (az >= 2.0) return { cls: "risk-elevated", label: "訊號觸發" };
+    return { cls: "risk-normal", label: "正常" };
+  }
+
+  function confTier(conf) {
+    if (conf === null || conf === undefined) return "conf-mid";
+    if (conf >= 0.75) return "conf-high";
+    if (conf >= 0.5) return "conf-mid";
+    return "conf-low";
+  }
+
+  function actionInfo(action) {
+    var a = (action || "").trim().toUpperCase();
+    if (a === "BUY") return { cls: "buy", label: "Buy" };
+    if (a === "SELL") return { cls: "sell", label: "Sell" };
+    if (a === "HOLD") return { cls: "hold", label: "Hold" };
+    return { cls: "hold", label: action || "N/A" };
+  }
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function coreReason(text) {
+    if (!text) return "";
+    var m = /Reasoning:\s*([\s\S]+)/i.exec(text);
+    var body = m ? m[1].trim() : text.trim();
+    var sentences = body.split(/(?<=[。！？.!?])\s*/).filter(Boolean);
+    return sentences.slice(0, 2).join("");
+  }
+
+  // ---- Z-Score 迷你儀表 (SVG) ----
+  function renderGauge(z) {
+    var w = 140, h = 20;
+    var padX = 4;
+    var innerW = w - padX * 2;
+    var domain = ZSCORE_DOMAIN;
+    var clipped = Math.max(-domain, Math.min(domain, z || 0));
+
+    function xAt(v) { return padX + ((v + domain) / (2 * domain)) * innerW; }
+
+    var trackY = h / 2 - 3;
+    var trackH = 6;
+    var x0 = xAt(-domain), x2 = xAt(2), xNeg2 = xAt(-2), xDomEnd = xAt(domain);
+    var zeroX = xAt(0);
+    var valX = xAt(clipped);
+
+    var overshoot = "";
+    if (clipped > ZSCORE_THRESHOLD) {
+      overshoot = '<rect x="' + x2.toFixed(1) + '" y="' + trackY + '" width="' + Math.max(0, valX - x2).toFixed(1) + '" height="' + trackH + '" rx="3" fill="var(--accent)"/>';
+    } else if (clipped < -ZSCORE_THRESHOLD) {
+      overshoot = '<rect x="' + valX.toFixed(1) + '" y="' + trackY + '" width="' + Math.max(0, xNeg2 - valX).toFixed(1) + '" height="' + trackH + '" rx="3" fill="var(--gauge-low)"/>';
+    }
+
+    var markerColor = clipped > ZSCORE_THRESHOLD ? "var(--accent)" : (clipped < -ZSCORE_THRESHOLD ? "var(--gauge-low)" : "var(--muted)");
+
+    return '<svg class="gauge-svg mono" viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="' + h + '" role="img" aria-label="Z-Score ' + fmtZ(z) + '">' +
+      '<rect x="' + x0.toFixed(1) + '" y="' + trackY + '" width="' + (xDomEnd - x0).toFixed(1) + '" height="' + trackH + '" rx="3" fill="var(--track)"/>' +
+      overshoot +
+      '<line x1="' + xNeg2.toFixed(1) + '" y1="' + (trackY - 2) + '" x2="' + xNeg2.toFixed(1) + '" y2="' + (trackY + trackH + 2) + '" stroke="var(--faint)" stroke-width="1"/>' +
+      '<line x1="' + x2.toFixed(1) + '" y1="' + (trackY - 2) + '" x2="' + x2.toFixed(1) + '" y2="' + (trackY + trackH + 2) + '" stroke="var(--faint)" stroke-width="1"/>' +
+      '<line x1="' + zeroX.toFixed(1) + '" y1="' + (trackY - 3) + '" x2="' + zeroX.toFixed(1) + '" y2="' + (trackY + trackH + 3) + '" stroke="var(--muted)" stroke-width="1.2"/>' +
+      '<circle cx="' + valX.toFixed(1) + '" cy="' + (trackY + trackH / 2) + '" r="4" fill="' + markerColor + '" stroke="var(--surface)" stroke-width="1.5"/>' +
+      '</svg>';
+  }
+
+  function renderTiles(docs) {
+    var el = document.getElementById("tiles");
+    if (!docs.length) {
+      el.innerHTML = '<div class="empty">尚無掃描資料</div>';
+      return;
+    }
+    docs.sort(function (a, b) { return (a.symbol || "").localeCompare(b.symbol || ""); });
+    el.innerHTML = docs.map(function (d) {
+      var risk = riskTier(d.z_score);
+      return '<div class="tile">' +
+        '<div class="tile-top">' +
+          '<span class="tile-symbol">' + escapeHtml(d.symbol) + '</span>' +
+          '<span class="tile-price mono">' + fmtPrice(d.price) + '</span>' +
+        '</div>' +
+        '<span class="pill ' + risk.cls + '">' + risk.label + '</span>' +
+        '<div class="gauge-row">' +
+          renderGauge(d.z_score) +
+          '<span class="gauge-value mono">' + fmtZ(d.z_score) + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function renderSignals(docs) {
+    var el = document.getElementById("signalList");
+    if (!docs.length) {
+      el.innerHTML = '<div class="empty">尚無 AI 分析紀錄，等待下一次異常訊號</div>';
+      return;
+    }
+    el.innerHTML = docs.map(function (d) {
+      var action = actionInfo(d.action);
+      var confCls = confTier(d.confidence);
+      var reason = d.core_reason || coreReason(d.reasoning) || "（無摘要）";
+      var full = d.reasoning || "（無完整推理內容）";
+      var entryLine = [];
+      if (d.entry !== null && d.entry !== undefined) entryLine.push("進場 " + fmtPrice(d.entry));
+      if (d.take_profit !== null && d.take_profit !== undefined) entryLine.push("停利 " + fmtPrice(d.take_profit));
+      if (d.stop_loss !== null && d.stop_loss !== undefined) entryLine.push("停損 " + fmtPrice(d.stop_loss));
+
+      return '<div class="signal-card ' + confCls + '">' +
+        '<div class="signal-head">' +
+          '<span class="signal-symbol">' + escapeHtml(d.symbol) + '</span>' +
+          '<span class="action-badge ' + action.cls + '">' + action.label + '</span>' +
+          '<span class="signal-time mono">' + fmtTime(d.created_at) + '</span>' +
+        '</div>' +
+        '<div class="signal-meta">' +
+          '<span>Z-Score <b class="mono">' + fmtZ(d.z_score) + '</b></span>' +
+          '<span>信心 <b class="mono">' + fmtPct(d.confidence) + '</b></span>' +
+          (entryLine.length ? '<span>' + entryLine.join('　') + '</span>' : '') +
+        '</div>' +
+        '<div class="core-reason"><span class="icon">🔎</span> ' + escapeHtml(reason) + '</div>' +
+        '<details class="full-reasoning"><summary>查看完整推理內容</summary><div class="body">' + escapeHtml(full) + '</div></details>' +
+      '</div>';
+    }).join("");
+  }
+
+  function renderStatus(meta) {
+    var dot = document.getElementById("statusDot");
+    var text = document.getElementById("statusText");
+    if (!meta) {
+      text.textContent = "尚未有掃描紀錄";
+      dot.className = "status-dot stale";
+      return;
+    }
+    var scannedAt = fmtTime(meta.last_scan_at);
+    var anomalyCount = meta.anomaly_count || 0;
+    dot.className = "status-dot" + (anomalyCount > 0 ? "" : " stale");
+    text.innerHTML = "最後掃描 <b>" + scannedAt + "</b><span class=\"divider\">　|　</span>本次異常 <b>" + anomalyCount + "</b> 個";
+  }
+
+  function boot() {
+    if (!window.claude || typeof window.claude.use !== "function") {
+      document.getElementById("tiles").innerHTML = '<div class="empty">此檢視環境不支援即時資料</div>';
+      return;
+    }
+    window.claude.use("db").then(function (db) {
+      if (!db) {
+        document.getElementById("tiles").innerHTML = '<div class="empty">無法連線資料庫</div>';
+        return;
+      }
+
+      db.collection("market_snapshot").onSnapshot(function (snap) {
+        renderTiles(snap.docs.map(function (d) { return d.data(); }));
+      }, function (err) {
+        document.getElementById("tiles").innerHTML = '<div class="empty">讀取失敗：' + escapeHtml(err.message) + '</div>';
+      });
+
+      db.collection("signals").orderBy("created_at", "desc").limit(30).onSnapshot(function (snap) {
+        renderSignals(snap.docs.map(function (d) { return d.data(); }));
+      }, function (err) {
+        document.getElementById("signalList").innerHTML = '<div class="empty">讀取失敗：' + escapeHtml(err.message) + '</div>';
+      });
+
+      db.doc("meta/status").onSnapshot(function (snap) {
+        renderStatus(snap.exists ? snap.data() : null);
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>

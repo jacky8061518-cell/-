@@ -18,8 +18,11 @@ except ImportError:  # pragma: no cover - pandas_ta 對 Python 版本要求較�
 
 logger = logging.getLogger(__name__)
 
-# 預設監控標的清單
-DEFAULT_SYMBOLS = ["BTC-USD", "ETH-USD", "NVDA", "TSLA", "AAPL"]
+# 預設監控標的清單：加密貨幣 + 美股大型科技股
+DEFAULT_SYMBOLS = [
+    "BTC-USD", "ETH-USD", "SOL-USD",
+    "NVDA", "TSLA", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "AMD",
+]
 
 # 布林帶參數：20 週期移動平均線、2 倍標準差
 BB_LENGTH = 20
