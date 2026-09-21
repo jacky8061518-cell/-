@@ -37,6 +37,9 @@ pip install -r requirements.txt
 ```
 
 > 註：`sqlite3` 為 Python 標準函式庫，無需另外安裝。
+>
+> 註：布林帶與 Z-Score 目前以 pandas 原生運算實作，`pandas_ta` 並非必要套件
+> （其 PyPI 版本僅支援 Python 3.12+），因此未列入 `requirements.txt` 的必裝清單。
 
 ### 1.3 設定 API Key
 

@@ -1,5 +1,4 @@
 pandas
-pandas_ta
 yfinance
 ccxt
 streamlit
@@ -7,3 +6,7 @@ crewai
 langchain_anthropic
 plotly
 duckduckgo-search
+
+# 選用：pandas_ta 目前在 PyPI 上僅提供要求 Python 3.12+ 的版本，
+# 若你使用 Python 3.12+ 且想啟用其技術指標，可自行取消下一行的註解安裝。
+# pandas_ta

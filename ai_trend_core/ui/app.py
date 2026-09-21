@@ -15,7 +15,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from core import database
-from core.quant_engine import DEFAULT_SYMBOLS, scan_market
+from core.quant_engine import DEFAULT_SYMBOLS, detect_signal, scan_market
+
+# 交易動作對應的顯示顏色：Buy 綠、Sell 紅、其餘（Hold 等）灰
+ACTION_COLORS = {"BUY": "#1DB954", "SELL": "#E74C3C"}
+ACTION_DEFAULT_COLOR = "#9AA0A6"
 
 st.set_page_config(page_title="AI Trend Core", layout="wide", page_icon="📈")
 database.init_db()
@@ -72,18 +76,21 @@ else:
     for sig in recent_signals:
         confidence = sig.get("confidence") or 0
         if confidence >= 0.75:
-            color = "#1DB954"  # 高信心：綠色
+            border_color = "#1DB954"  # 高信心：綠色
         elif confidence >= 0.5:
-            color = "#F5A623"  # 中信心：橙色
+            border_color = "#F5A623"  # 中信心：橙色
         else:
-            color = "#E74C3C"  # 低信心：紅色
+            border_color = "#E74C3C"  # 低信心：紅色
+
+        action = sig.get("action") or "N/A"
+        action_color = ACTION_COLORS.get(action.strip().upper(), ACTION_DEFAULT_COLOR)
 
         st.markdown(
             f"""
-            <div style="border-left: 6px solid {color}; padding: 10px 16px;
+            <div style="border-left: 6px solid {border_color}; padding: 10px 16px;
                         margin-bottom: 10px; background-color: #1a1d24; border-radius: 6px;">
                 <b>{sig['symbol']}</b>
-                動作：<b>{sig.get('action') or 'N/A'}</b>
+                動作：<b style="color:{action_color};">{action}</b>
                 信心評分：<b>{confidence:.0%}</b>
                 <span style="color:gray;">{sig['created_at']}</span><br/>
                 進場：{sig.get('entry')}　停利：{sig.get('take_profit')}　停損：{sig.get('stop_loss')}
@@ -109,6 +116,21 @@ if selected_symbol:
                               line=dict(color="red", width=1, dash="dot")))
     fig.add_trace(go.Scatter(x=history.index, y=history["bb_lower"], name="布林下軌",
                               line=dict(color="green", width=1, dash="dot")))
+
+    anomaly_labels = history["z_score"].apply(detect_signal)
+    overbought = history[anomaly_labels == "OVERBOUGHT"]
+    oversold = history[anomaly_labels == "OVERSOLD"]
+    if not overbought.empty:
+        fig.add_trace(go.Scatter(
+            x=overbought.index, y=overbought["close"], mode="markers", name="超買異常",
+            marker=dict(symbol="triangle-down", size=12, color="#E74C3C"),
+        ))
+    if not oversold.empty:
+        fig.add_trace(go.Scatter(
+            x=oversold.index, y=oversold["close"], mode="markers", name="超賣異常",
+            marker=dict(symbol="triangle-up", size=12, color="#1DB954"),
+        ))
+
     fig.update_layout(
         template="plotly_dark", height=520, xaxis_rangeslider_visible=False,
         title=f"{selected_symbol} 價格走勢與布林帶",
