@@ -20,7 +20,8 @@ ai_trend_core/
 ├── tests/                 # pytest 單元測試
 ├── data/                  # 資料庫檔案（trading_signals.db 執行時自動產生）
 ├── main_loop.py           # 24/7 循環執行腳本（每 15 分鐘掃描一次）
-├── manual_run.py          # 手動單次執行腳本（只跑一次，適合自行決定何時查看報告）
+├── manual_run.py          # 手動單次執行腳本（用 CrewAI + API Key，只跑一次）
+├── daily_scan.py          # 純量化掃描腳本（不需要 API Key，供「手動智慧模式」使用）
 ├── pytest.ini
 └── requirements.txt
 ```
@@ -81,10 +82,39 @@ export TELEGRAM_CHAT_ID="123456789"
 
 ## 2. 啟動系統
 
-系統支援兩種運行方式：想要 24/7 自動監控就用 `main_loop.py`；
-想要自己決定何時看報告，就用 `manual_run.py` 手動執行一次即可。
+系統支援三種運行方式，依你是否願意付費使用 Anthropic API 而定：
 
-### 2.0 手動單次執行（不想 24/7 常駐運行）
+| 方式 | 腳本 | 需要 API Key？ | 適合情境 |
+|---|---|---|---|
+| 手動智慧模式 | `daily_scan.py` | ❌ 不需要 | 不想額外付費，改用你自己的 Claude Pro / Claude Code 額度分析 |
+| 手動單次執行 | `manual_run.py` | ✅ 需要 | 想要全自動 CrewAI 分析，但自己控制何時執行、控制花費 |
+| 24/7 自動監控 | `main_loop.py` | ✅ 需要 | 想要完全無人值守、持續背景運行 |
+
+### 2.1 手動智慧模式（不需要 API Key，推薦沒有額外預算時使用）
+
+```bash
+python daily_scan.py
+```
+
+這個腳本**只做量化計算**（抓 K 線、算布林帶與 Z-Score），完全不呼叫任何 LLM，
+所以不需要 `ANTHROPIC_API_KEY`、也不會產生任何 API 費用。執行後會：
+1. 印出所有監控標的目前的價格、Z-Score、訊號。
+2. 把 `|Z-Score| > 2` 的異常標的整理成結構化 JSON，印在終端機，同時寫入
+   `data/latest_scan.json`。
+
+接著把工作交給 **Claude Code**（也就是你現在對話的這個助手，用你的 Claude Pro /
+Claude Code 額度，而不是額外付費的 API）：
+- 直接把終端機印出的 JSON 複製貼給 Claude Code，或請它讀取 `data/latest_scan.json`。
+- 請 Claude Code 扮演「首席策略官」：分析這些量化數據、上網查詢相關新聞判斷情緒，
+  給出 Action / Entry / TP / SL / 信心評分與理由。
+- 請 Claude Code 用 `core/database.py` 的 `insert_signal()` 把這次分析結果寫入
+  `trading_signals.db`，這樣 Streamlit 儀表板跟你的歷史紀錄追蹤都能照常運作，
+  跟 `main_loop.py` / `manual_run.py` 產生的訊號共用同一張表、同一套格式。
+
+若當次掃描沒有任何標的的 `|Z-Score| > 2`，代表市場目前沒有統計異常，
+不需要進一步分析，此時直接結束即可。
+
+### 2.2 手動單次執行（需要 API Key，全自動 CrewAI）
 
 ```bash
 python manual_run.py
@@ -98,7 +128,7 @@ python manual_run.py
 - 若信心評分超過 80% 且已設定 Telegram 憑證，同樣會推播警報（與 `main_loop.py` 共用同一套
   寫入資料庫與推播邏輯，行為完全一致）。
 
-### 2.1 啟動後端 24/7 掃描迴圈
+### 2.3 啟動後端 24/7 掃描迴圈（需要 API Key）
 
 ```bash
 python main_loop.py
@@ -112,7 +142,7 @@ python main_loop.py
 4. 若信心評分超過 80% 且已設定 Telegram 憑證，主動推播警報。
 5. 於終端機輸出精簡的執行日誌。
 
-### 2.2 啟動前端儀表板
+### 2.4 啟動前端儀表板
 
 ```bash
 streamlit run ui/app.py
