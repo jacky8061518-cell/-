@@ -10,6 +10,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -29,8 +30,13 @@ SCAN_INTERVAL_SECONDS = 15 * 60
 TELEGRAM_CONFIDENCE_THRESHOLD = 0.8
 
 
-def _handle_anomaly(snapshot: MarketSnapshot) -> None:
-    """對單一異常標的啟動 AI 智能體分析，並將結果寫入資料庫。"""
+def handle_anomaly(snapshot: MarketSnapshot) -> dict[str, Any] | None:
+    """對單一異常標的啟動 AI 智能體分析、寫入資料庫並視信心值推播 Telegram。
+
+    回傳 analyze_opportunity() 的結構化結果供呼叫端顯示（例如 manual_run.py 的
+    終端機報告），分析失敗時回傳 None。main_loop.py 與 manual_run.py 共用此函式，
+    確保 24/7 迴圈與手動單次執行的資料庫寫入 / 推播邏輯完全一致。
+    """
     from agents.trading_crew import analyze_opportunity  # 延遲載入，避免無異常時仍初始化 LLM
 
     logger.info("偵測到異常：%s（%s），啟動 AI 智能體分析...", snapshot.symbol, snapshot.signal)
@@ -38,7 +44,7 @@ def _handle_anomaly(snapshot: MarketSnapshot) -> None:
         result = analyze_opportunity(snapshot.symbol, snapshot)
     except Exception:
         logger.exception("分析 %s 時發生錯誤，略過此標的。", snapshot.symbol)
-        return
+        return None
 
     database.insert_signal(
         symbol=snapshot.symbol,
@@ -82,6 +88,8 @@ def _handle_anomaly(snapshot: MarketSnapshot) -> None:
         if notifier.send_telegram_message(message):
             logger.info("已透過 Telegram 推播 %s 的高信心訊號。", snapshot.symbol)
 
+    return result
+
 
 def run_once(symbols: list[str] | None = None) -> None:
     """執行一次完整的「全市場掃描 + 異常深度分析」流程。"""
@@ -101,7 +109,7 @@ def run_once(symbols: list[str] | None = None) -> None:
         return
 
     for snapshot in anomalies:
-        _handle_anomaly(snapshot)
+        handle_anomaly(snapshot)
 
 
 def main() -> None:
