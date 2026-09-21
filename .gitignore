@@ -19,3 +19,6 @@ data/databases/tw/*
 !data/databases/tw/coverage-report.csv
 data/cache/
 data/snapshots/
+
+# AI Trend Core（ai_trend_core/）執行期產生的檔案
+ai_trend_core/data/*.db
