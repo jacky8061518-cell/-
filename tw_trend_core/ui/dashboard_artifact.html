@@ -152,6 +152,19 @@
   .dir-down { color: var(--gauge-low); }
   td.num { text-align: right; }
 
+  .regime-badge {
+    font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 100px; white-space: nowrap;
+  }
+  .regime-badge.trend-up { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-ink); }
+  .regime-badge.trend-down { background: color-mix(in srgb, var(--gauge-low) 16%, transparent); color: var(--gauge-low); }
+  .regime-badge.range { background: var(--surface-2); color: var(--muted); }
+  .regime-badge.unknown { background: var(--surface-2); color: var(--faint); }
+
+  .edge-score { font-weight: 700; }
+  .edge-score.strong { color: var(--positive); }
+  .edge-score.medium { color: var(--accent-ink); }
+  .edge-score.weak { color: var(--faint); font-weight: 500; }
+
   .empty {
     color: var(--faint); font-size: 13px; padding: 18px; text-align: center;
     background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
@@ -221,17 +234,22 @@
 
 <section>
   <h2>異常標的總覽</h2>
-  <p class="section-note">依 |Z-Score| 由大到小排序；橘底列為已完成 AI 分析的主要標的</p>
+  <p class="section-note">
+    依 Edge Score（綜合統計極端度、量能確認、流動性）由高到低排序；已排除流動性不足的標的。
+    「制度」為趨勢/震盪判別：<b style="color:var(--accent-ink)">趨勢▲/▼</b> 代表動能延續訊號，
+    不宜套用等回檔的均值回歸邏輯；<b>震盪</b> 才是傳統均值回歸的合理場景。橘底列為已完成 AI 分析的主要標的。
+  </p>
   <div class="table-wrap">
     <table id="anomalyTable">
       <thead>
         <tr>
           <th>標的</th><th>市場</th><th>產業</th>
-          <th style="text-align:right">價格</th><th style="text-align:right">Z-Score</th><th>訊號</th>
+          <th style="text-align:right">價格</th><th style="text-align:right">Z-Score</th>
+          <th>制度</th><th style="text-align:right">Edge</th>
         </tr>
       </thead>
       <tbody id="anomalyBody">
-        <tr><td colspan="6" class="empty">正在連線讀取最新掃描資料…</td></tr>
+        <tr><td colspan="7" class="empty">正在連線讀取最新掃描資料…</td></tr>
       </tbody>
     </table>
   </div>
@@ -312,13 +330,28 @@
     tiles[3].textContent = meta.analyzed_count != null ? meta.analyzed_count : "—";
   }
 
+  function regimeBadge(regime) {
+    if (regime === "TRENDING_UP") return '<span class="regime-badge trend-up">趨勢▲</span>';
+    if (regime === "TRENDING_DOWN") return '<span class="regime-badge trend-down">趨勢▼</span>';
+    if (regime === "RANGE_BOUND") return '<span class="regime-badge range">震盪</span>';
+    return '<span class="regime-badge unknown">—</span>';
+  }
+
+  function edgeScoreCell(score) {
+    if (score === null || score === undefined || isNaN(score)) return '<span class="mono" style="color:var(--faint)">—</span>';
+    var cls = score >= 60 ? "strong" : score >= 40 ? "medium" : "weak";
+    return '<span class="edge-score mono ' + cls + '">' + Number(score).toFixed(0) + '</span>';
+  }
+
   function renderAnomalyTable(anomalies, analyzedCodes) {
     var body = document.getElementById("anomalyBody");
     if (!anomalies || !anomalies.length) {
-      body.innerHTML = '<tr><td colspan="6" class="empty">目前無異常標的</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty">目前無異常標的</td></tr>';
       return;
     }
     var sorted = anomalies.slice().sort(function (a, b) {
+      var ea = a.edge_score, eb = b.edge_score;
+      if (ea !== null && ea !== undefined && eb !== null && eb !== undefined) return eb - ea;
       return Math.abs(b.z_score || 0) - Math.abs(a.z_score || 0);
     });
     body.innerHTML = sorted.map(function (a) {
@@ -331,7 +364,8 @@
         '<td>' + escapeHtml(a.industry) + '</td>' +
         '<td class="num mono">' + fmtPrice(a.price) + '</td>' +
         '<td class="num mono ' + dirCls + '">' + fmtZ(a.z_score) + '</td>' +
-        '<td>' + (a.signal === "OVERBOUGHT" ? "超買" : a.signal === "OVERSOLD" ? "超賣" : a.signal) + '</td>' +
+        '<td>' + regimeBadge(a.regime) + '</td>' +
+        '<td class="num">' + edgeScoreCell(a.edge_score) + '</td>' +
       '</tr>';
     }).join("");
   }
@@ -372,12 +406,12 @@
 
   function boot() {
     if (!window.claude || typeof window.claude.use !== "function") {
-      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="6" class="empty">此檢視環境不支援即時資料</td></tr>';
+      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="7" class="empty">此檢視環境不支援即時資料</td></tr>';
       return;
     }
     window.claude.use("db").then(function (db) {
       if (!db) {
-        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="6" class="empty">無法連線資料庫</td></tr>';
+        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="7" class="empty">無法連線資料庫</td></tr>';
         return;
       }
 
