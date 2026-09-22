@@ -121,7 +121,7 @@
     max-height: 520px;
     overflow-y: auto;
   }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 620px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 900px; }
   thead th {
     position: sticky; top: 0;
     background: var(--surface-2);
@@ -237,7 +237,11 @@
   <p class="section-note">
     依 Edge Score（綜合統計極端度、量能確認、流動性）由高到低排序；已排除流動性不足的標的。
     「制度」為趨勢/震盪判別：<b style="color:var(--accent-ink)">趨勢▲/▼</b> 代表動能延續訊號，
-    不宜套用等回檔的均值回歸邏輯；<b>震盪</b> 才是傳統均值回歸的合理場景。橘底列為已完成 AI 分析的主要標的。
+    不宜套用等回檔的均值回歸邏輯；<b>震盪</b> 才是傳統均值回歸的合理場景。
+    「產業相對Z」接近 0 代表整個產業都在動（可能是產業事件），遠離 0 才是個股獨立訊號。
+    「量能Z」正值代表有放量佐證，負值代表量沒跟上、訊號可信度較低。
+    「日均量」為近期日均成交金額，數字越大代表越容易實際進出。橘底列為已完成 AI 分析的主要標的。
+    可左右拖曳表格查看完整欄位。
   </p>
   <div class="table-wrap">
     <table id="anomalyTable">
@@ -245,11 +249,15 @@
         <tr>
           <th>標的</th><th>市場</th><th>產業</th>
           <th style="text-align:right">價格</th><th style="text-align:right">Z-Score</th>
-          <th>制度</th><th style="text-align:right">Edge</th>
+          <th>制度</th>
+          <th style="text-align:right">產業相對Z</th>
+          <th style="text-align:right">量能Z</th>
+          <th style="text-align:right">日均量</th>
+          <th style="text-align:right">Edge</th>
         </tr>
       </thead>
       <tbody id="anomalyBody">
-        <tr><td colspan="7" class="empty">正在連線讀取最新掃描資料…</td></tr>
+        <tr><td colspan="10" class="empty">正在連線讀取最新掃描資料…</td></tr>
       </tbody>
     </table>
   </div>
@@ -288,6 +296,13 @@
   function fmtPct(v) {
     if (v === null || v === undefined || isNaN(v)) return "—";
     return Math.round(Number(v) * 100) + "%";
+  }
+  function fmtTurnover(v) {
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    var n = Number(v);
+    if (n >= 1e8) return (n / 1e8).toFixed(1) + "億";
+    if (n >= 1e4) return Math.round(n / 1e4).toLocaleString("zh-TW") + "萬";
+    return Math.round(n).toLocaleString("zh-TW");
   }
   function fmtTime(iso) {
     if (!iso) return "—";
@@ -346,7 +361,7 @@
   function renderAnomalyTable(anomalies, analyzedCodes) {
     var body = document.getElementById("anomalyBody");
     if (!anomalies || !anomalies.length) {
-      body.innerHTML = '<tr><td colspan="7" class="empty">目前無異常標的</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="empty">目前無異常標的</td></tr>';
       return;
     }
     var sorted = anomalies.slice().sort(function (a, b) {
@@ -365,6 +380,9 @@
         '<td class="num mono">' + fmtPrice(a.price) + '</td>' +
         '<td class="num mono ' + dirCls + '">' + fmtZ(a.z_score) + '</td>' +
         '<td>' + regimeBadge(a.regime) + '</td>' +
+        '<td class="num mono">' + fmtZ(a.industry_relative_z) + '</td>' +
+        '<td class="num mono">' + fmtZ(a.volume_z_score) + '</td>' +
+        '<td class="num mono">' + fmtTurnover(a.avg_daily_turnover) + '</td>' +
         '<td class="num">' + edgeScoreCell(a.edge_score) + '</td>' +
       '</tr>';
     }).join("");
@@ -406,12 +424,12 @@
 
   function boot() {
     if (!window.claude || typeof window.claude.use !== "function") {
-      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="7" class="empty">此檢視環境不支援即時資料</td></tr>';
+      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="10" class="empty">此檢視環境不支援即時資料</td></tr>';
       return;
     }
     window.claude.use("db").then(function (db) {
       if (!db) {
-        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="7" class="empty">無法連線資料庫</td></tr>';
+        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="10" class="empty">無法連線資料庫</td></tr>';
         return;
       }
 
