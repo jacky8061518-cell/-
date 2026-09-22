@@ -73,7 +73,19 @@ python daily_scan.py
 建議先請 Claude Code 依 `|Z-Score|`、產業別、或你關心的個股篩選出幾檔即可，
 不需要對每一檔都做完整新聞分析與查證。
 
-### 4. 持久化網頁儀表板
+### 4. Telegram 高信心警報（與 AI Trend Core 共用同一個 Bot）
+
+`core/notifier.py` 提供 `notify_if_high_confidence(signal)`：當某檔標的分析結果的
+信心評分**超過 80%** 時，透過 Telegram Bot API 推播警報（標的、價格、Z-Score、
+建議動作、停損停利、理由摘要）；信心評分未超過門檻、或尚未設定
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` 環境變數時，安靜地跳過，不會中斷流程。
+
+環境變數設定方式與 [AI Trend Core](../ai_trend_core/README.md#14-設定-telegram-即時警報選用)
+完全相同——用同一個 Telegram Bot、同一組環境變數即可，台股與美股的高信心訊號
+會推播到同一個對話。Claude Code 完成每檔標的的分析後，會對每一筆分析結果呼叫
+一次 `notify_if_high_confidence()`，由信心評分自動決定是否推播，不需要手動判斷。
+
+### 5. 持久化網頁儀表板
 
 跟 [AI Trend Core 的做法](../ai_trend_core/README.md) 一樣：`ui/dashboard_artifact.html`
 發布為 claude.ai 上的 Artifact 頁面，資料存在該 Artifact 自己的雲端資料庫，
