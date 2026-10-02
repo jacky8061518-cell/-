@@ -36,19 +36,20 @@ from trading_intel.ingestion.yahoo import fetch_chart, parse_chart
 from trading_intel.models.regime import classify_trend, classify_volatility
 from trading_intel.normalize.corporate_actions import RawPrice
 from trading_intel.normalize.quality import check_raw_sanity, check_sanity
+from trading_intel.portfolio.construction import build_portfolio
 from trading_intel.risk.pretrade import PortfolioState, check_pretrade
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = PROJECT_ROOT / "runs"
 HYPOTHESES_STORE = PROJECT_ROOT / "data" / "hypotheses.json"
 
-#: 觀察名單。Yahoo 代號慣例：上市 .TW，上櫃 .TWO。
-WATCHLIST: dict[str, str] = {
-    "2330.TW": "台積電",
-    "2454.TW": "聯發科",
-    "2317.TW": "鴻海",
-    "2308.TW": "台達電",
-    "3008.TW": "大立光",
+#: 觀察名單。Yahoo 代號慣例：上市 .TW，上櫃 .TWO。(名稱, 產業)
+WATCHLIST: dict[str, tuple[str, str]] = {
+    "2330.TW": ("台積電", "半導體"),
+    "2454.TW": ("聯發科", "半導體"),
+    "2317.TW": ("鴻海", "電子代工"),
+    "2308.TW": ("台達電", "電子零組件"),
+    "3008.TW": ("大立光", "光學元件"),
 }
 
 TOP_N_CANDIDATES = 2
@@ -60,6 +61,7 @@ SKIP_DAYS = 21
 class TickerReport:
     ticker: str
     name: str
+    sector: str
     entity_id: str
     quality_alerts: list[str] = field(default_factory=list)
     tradable: bool = True
@@ -80,9 +82,9 @@ def fetch_ticker(ticker: str) -> list[tuple[date, Decimal, int]]:
     return [(bar.trade_date, bar.close, bar.volume) for bar in bars]
 
 
-def analyze_ticker(ticker: str, name: str, asof: datetime) -> TickerReport:
+def analyze_ticker(ticker: str, name: str, sector: str, asof: datetime) -> TickerReport:
     entity_id: EntityId = make_entity_id(Market.TW, ticker.split(".")[0])
-    report = TickerReport(ticker=ticker, name=name, entity_id=str(entity_id))
+    report = TickerReport(ticker=ticker, name=name, sector=sector, entity_id=str(entity_id))
     raw_rows = fetch_ticker(ticker)
     if len(raw_rows) < 60:
         report.quality_alerts.append("資料筆數不足 60 筆，狀態設為 NO_TRADE")
@@ -236,22 +238,48 @@ def _append_hypothesis(statement: str, asof: datetime) -> None:
 
 
 def run_pretrade_check(candidates: list[TickerReport]) -> dict[str, object]:
+    """把候選訊號交給真正的組合建構函式配權，再過風控事前檢查。
+
+    早期版本直接把候選標的等權重各分一半，這樣不管候選是誰，單一標的權重
+    永遠是 50%，永遠超過 5% 的單一標的上限——那不是在檢查風險，只是在
+    重複講一遍寫死的配權方式。改成先呼叫 build_portfolio 用真正的限額
+    （單一標的上限、產業上限、波動率目標化）把候選分數轉成合法權重，
+    風控檢查才有意義：如果還是被否決，代表限額本身跟現有候選數量衝突，
+    是值得注意的真訊號，不是配權邏輯先天就會觸發的假警報。
+    """
     settings = load_settings(env="dev")
     if not candidates:
-        return {"approved": True, "breaches": [], "note": "無候選標的，無需檢查"}
-    weight = 1.0 / len(candidates)
-    proposed = {make_entity_id(Market.TW, c.ticker.split(".")[0]): weight for c in candidates}
+        return {"approved": True, "breaches": [], "weights": {}, "note": "無候選標的，無需檢查"}
+
+    scores = {
+        make_entity_id(Market.TW, c.ticker.split(".")[0]): (c.momentum_score or 0.0)
+        for c in candidates
+    }
+    sectors = {make_entity_id(Market.TW, c.ticker.split(".")[0]): c.sector for c in candidates}
+    forecast_vol = float(
+        np.mean([c.ewma_volatility for c in candidates if c.ewma_volatility is not None]) or 0.2
+    )
+    construction = build_portfolio(
+        scores,
+        sectors=sectors,
+        forecast_annual_volatility=forecast_vol,
+        limits=settings.risk,
+        settings=settings.portfolio,
+    )
+
     state = PortfolioState(
         weights={},
-        sectors={},
-        adv_values={eid: Decimal("100000000") for eid in proposed},
+        sectors=sectors,
+        adv_values={eid: Decimal("100000000") for eid in scores},
         equity=Decimal("10000000"),
     )
-    verdict, breaches = check_pretrade(proposed, state, settings.risk)
+    verdict, breaches = check_pretrade(construction.weights, state, settings.risk)
     return {
         "approved": verdict.approved,
         "breached_limits": list(verdict.breached_limits),
         "breaches": [{"code": b.code.value, "detail": b.detail} for b in breaches],
+        "weights": {str(k): v for k, v in construction.weights.items()},
+        "exposure_scalar": construction.exposure_scalar,
     }
 
 
@@ -296,7 +324,12 @@ def build_markdown(
             for rt in redteam_list:
                 lines.append(f"- RedTeam（{rt.get('ticker')}）：{rt}")
     lines.append("")
-    lines.append("## 風控事前檢查")
+    lines.append("## 組合建構與風控事前檢查")
+    weights = pretrade.get("weights")
+    if isinstance(weights, dict) and weights:
+        lines.append("配權（依真實限額配置後）：")
+        for entity_id, weight in weights.items():
+            lines.append(f"- {entity_id}：{weight:.2%}")
     lines.append(f"通過：{pretrade['approved']}")
     if not pretrade["approved"]:
         lines.append(f"違反：{pretrade['breached_limits']}")
@@ -305,7 +338,9 @@ def build_markdown(
 
 def main() -> None:
     asof = utc_now()
-    reports = [analyze_ticker(ticker, name, asof) for ticker, name in WATCHLIST.items()]
+    reports = [
+        analyze_ticker(ticker, name, sector, asof) for ticker, (name, sector) in WATCHLIST.items()
+    ]
 
     tradable = [r for r in reports if r.tradable and r.momentum_score is not None]
     candidates = sorted(tradable, key=lambda r: r.momentum_score or 0, reverse=True)[
