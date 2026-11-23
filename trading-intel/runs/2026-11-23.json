@@ -1,0 +1,115 @@
+{
+  "generated_at": "2026-11-23T18:32:52.390302+00:00",
+  "watchlist": [
+    {
+      "ticker": "2330.TW",
+      "name": "台積電",
+      "entity_id": "TW:2330",
+      "quality_alerts": [],
+      "tradable": true,
+      "last_close": 2000.0,
+      "ewma_volatility": 0.44466562374784296,
+      "stationarity_verdict": "INCONCLUSIVE",
+      "ou_half_life_days": 0.15858926166258366,
+      "trend": "TRENDING_DOWN",
+      "volatility_state": "EXTREME",
+      "momentum_score": 0.3633802816901408
+    },
+    {
+      "ticker": "2454.TW",
+      "name": "聯發科",
+      "entity_id": "TW:2454",
+      "quality_alerts": [],
+      "tradable": true,
+      "last_close": 3350.0,
+      "ewma_volatility": 0.8586206137833404,
+      "stationarity_verdict": "STATIONARY",
+      "ou_half_life_days": 0.34918964520801576,
+      "trend": "TRENDING_DOWN",
+      "volatility_state": "EXTREME",
+      "momentum_score": 1.787878787878788
+    },
+    {
+      "ticker": "2317.TW",
+      "name": "鴻海",
+      "entity_id": "TW:2317",
+      "quality_alerts": [],
+      "tradable": true,
+      "last_close": 210.0,
+      "ewma_volatility": 0.5087164733971676,
+      "stationarity_verdict": "STATIONARY",
+      "ou_half_life_days": 0.17122039996100302,
+      "trend": "TRENDING_DOWN",
+      "volatility_state": "EXTREME",
+      "momentum_score": 0.11856823266219241
+    },
+    {
+      "ticker": "2308.TW",
+      "name": "台達電",
+      "entity_id": "TW:2308",
+      "quality_alerts": [],
+      "tradable": true,
+      "last_close": 900.0,
+      "ewma_volatility": 0.8764341980806309,
+      "stationarity_verdict": "INCONCLUSIVE",
+      "ou_half_life_days": 0.28106834226826566,
+      "trend": "TRENDING_DOWN",
+      "volatility_state": "EXTREME",
+      "momentum_score": 0.43805309734513265
+    },
+    {
+      "ticker": "3008.TW",
+      "name": "大立光",
+      "entity_id": "TW:3008",
+      "quality_alerts": [],
+      "tradable": true,
+      "last_close": 3670.0,
+      "ewma_volatility": 0.9233973732050166,
+      "stationarity_verdict": "STATIONARY",
+      "ou_half_life_days": 0.26477190398683315,
+      "trend": "TRENDING_DOWN",
+      "volatility_state": "EXTREME",
+      "momentum_score": 1.5390946502057612
+    }
+  ],
+  "candidates": [
+    "2454.TW",
+    "3008.TW"
+  ],
+  "agents": {
+    "status": "skipped",
+    "reason": "未設定 ANTHROPIC_API_KEY，本次僅執行量化層，agent 分析層未執行"
+  },
+  "pretrade": {
+    "approved": false,
+    "breached_limits": [
+      "MAX_POSITION_WEIGHT",
+      "MAX_POSITION_WEIGHT",
+      "MAX_SECTOR_WEIGHT",
+      "MAX_NET_EXPOSURE",
+      "TOP5_CONCENTRATION"
+    ],
+    "breaches": [
+      {
+        "code": "MAX_POSITION_WEIGHT",
+        "detail": "TW:2454 權重 50.00% 超過單一標的上限 5.00%"
+      },
+      {
+        "code": "MAX_POSITION_WEIGHT",
+        "detail": "TW:3008 權重 50.00% 超過單一標的上限 5.00%"
+      },
+      {
+        "code": "MAX_SECTOR_WEIGHT",
+        "detail": "產業「未分類」曝險 100.00% 超過上限 25.00%"
+      },
+      {
+        "code": "MAX_NET_EXPOSURE",
+        "detail": "淨曝險 100.00% 超過上限"
+      },
+      {
+        "code": "TOP5_CONCENTRATION",
+        "detail": "前五大部位合計 100.00% 超過上限 40.00%"
+      }
+    ]
+  }
+}
