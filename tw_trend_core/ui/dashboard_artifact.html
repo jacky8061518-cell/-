@@ -165,6 +165,26 @@
   .edge-score.medium { color: var(--accent-ink); }
   .edge-score.weak { color: var(--faint); font-weight: 500; }
 
+  /* ---- 大盤體制橫幅（top-down 市場過濾器） ---- */
+  .regime-banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border-radius: 12px; padding: 12px 16px; margin-top: 14px;
+    border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+  .regime-banner.risk-off { background: color-mix(in srgb, var(--negative) 12%, var(--surface)); border-color: var(--negative); }
+  .regime-banner.risk-on { background: color-mix(in srgb, var(--positive) 10%, var(--surface)); border-color: var(--positive); }
+  .regime-banner.neutral { background: var(--surface-2); }
+  .regime-banner .regime-title { font-weight: 800; font-size: 14px; white-space: nowrap; }
+  .regime-banner.risk-off .regime-title { color: var(--negative); }
+  .regime-banner.risk-on .regime-title { color: var(--positive); }
+  .regime-banner.neutral .regime-title { color: var(--muted); }
+  .regime-banner .regime-reason { font-size: 12.5px; color: var(--ink); line-height: 1.5; flex: 1 1 280px; }
+  .regime-banner .regime-stats { font-size: 11px; color: var(--faint); white-space: nowrap; }
+
+  .status-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 100px; white-space: nowrap; }
+  .status-badge.buy-blocked { background: color-mix(in srgb, var(--negative) 16%, transparent); color: var(--negative); }
+  .status-badge.short-candidate { background: color-mix(in srgb, var(--gauge-low) 16%, transparent); color: var(--gauge-low); }
+
   .empty {
     color: var(--faint); font-size: 13px; padding: 18px; text-align: center;
     background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
@@ -230,6 +250,10 @@
     <div class="stat-tile accent"><div class="label">異常標的</div><div class="value mono">—</div></div>
     <div class="stat-tile"><div class="label">已分析</div><div class="value mono">—</div></div>
   </div>
+  <div class="regime-banner neutral" id="regimeBanner">
+    <span class="regime-title">大盤體制：讀取中…</span>
+    <span class="regime-reason"></span>
+  </div>
 </header>
 
 <section>
@@ -240,7 +264,10 @@
     不宜套用等回檔的均值回歸邏輯；<b>震盪</b> 才是傳統均值回歸的合理場景。
     「產業相對Z」接近 0 代表整個產業都在動（可能是產業事件），遠離 0 才是個股獨立訊號。
     「量能Z」正值代表有放量佐證，負值代表量沒跟上、訊號可信度較低。
-    「日均量」為近期日均成交金額，數字越大代表越容易實際進出。橘底列為已完成 AI 分析的主要標的。
+    「日均量」為近期日均成交金額，數字越大代表越容易實際進出。「體制過濾」是 top-down 大盤過濾器
+    （見上方橫幅）套用在這檔標的上的結果：<b style="color:var(--negative)">🚫 禁買</b> 代表大盤處於風險規避
+    環境時原本的超賣做多候選，不論個股故事多扎實都不建議買進；<b style="color:var(--gauge-low)">🩳 空單候選</b>
+    代表大盤風險規避時這檔超買標的更適合研究放空機會，而非等反彈。橘底列為已完成 AI 分析的主要標的。
     可左右拖曳表格查看完整欄位。
   </p>
   <div class="table-wrap">
@@ -254,10 +281,11 @@
           <th style="text-align:right">量能Z</th>
           <th style="text-align:right">日均量</th>
           <th style="text-align:right">Edge</th>
+          <th>體制過濾</th>
         </tr>
       </thead>
       <tbody id="anomalyBody">
-        <tr><td colspan="10" class="empty">正在連線讀取最新掃描資料…</td></tr>
+        <tr><td colspan="11" class="empty">正在連線讀取最新掃描資料…</td></tr>
       </tbody>
     </table>
   </div>
@@ -345,6 +373,39 @@
     tiles[3].textContent = meta.analyzed_count != null ? meta.analyzed_count : "—";
   }
 
+  function renderRegimeBanner(meta) {
+    var el = document.getElementById("regimeBanner");
+    var r = meta && meta.market_regime;
+    if (!r) {
+      el.className = "regime-banner neutral";
+      el.innerHTML = '<span class="regime-title">大盤體制：無資料</span>' +
+        '<span class="regime-reason">尚未有體制過濾器的掃描結果。</span>';
+      return;
+    }
+    var cls = r.classification === "RISK_OFF" ? "risk-off" : r.classification === "RISK_ON" ? "risk-on" : "neutral";
+    var icon = r.classification === "RISK_OFF" ? "🚫" : r.classification === "RISK_ON" ? "✅" : "⚠️";
+    var label = r.classification === "RISK_OFF" ? "風險規避（暫停買進）" : r.classification === "RISK_ON" ? "風險偏好正常" : "中性";
+    var statsParts = [];
+    if (r.taiex_deviation !== null && r.taiex_deviation !== undefined) {
+      statsParts.push("加權指數乖離20MA " + fmtZ(r.taiex_deviation * 100) + "%");
+    }
+    if (r.oversold_ratio !== null && r.oversold_ratio !== undefined) {
+      statsParts.push("超賣占比 " + Math.round(r.oversold_ratio * 100) + "%");
+    }
+    el.className = "regime-banner " + cls;
+    el.innerHTML =
+      '<span class="regime-title">' + icon + ' 大盤體制：' + label + '</span>' +
+      '<span class="regime-reason">' + escapeHtml(r.reason || "") + '</span>' +
+      '<span class="regime-stats mono">' + escapeHtml(statsParts.join("　")) + '</span>';
+  }
+
+  function statusCell(a) {
+    var parts = [];
+    if (a.buy_eligible === false) parts.push('<span class="status-badge buy-blocked">🚫 禁買</span>');
+    if (a.short_candidate === true) parts.push('<span class="status-badge short-candidate">🩳 空單候選</span>');
+    return parts.join(" ") || '<span class="mono" style="color:var(--faint)">—</span>';
+  }
+
   function regimeBadge(regime) {
     if (regime === "TRENDING_UP") return '<span class="regime-badge trend-up">趨勢▲</span>';
     if (regime === "TRENDING_DOWN") return '<span class="regime-badge trend-down">趨勢▼</span>';
@@ -361,7 +422,7 @@
   function renderAnomalyTable(anomalies, analyzedCodes) {
     var body = document.getElementById("anomalyBody");
     if (!anomalies || !anomalies.length) {
-      body.innerHTML = '<tr><td colspan="10" class="empty">目前無異常標的</td></tr>';
+      body.innerHTML = '<tr><td colspan="11" class="empty">目前無異常標的</td></tr>';
       return;
     }
     var sorted = anomalies.slice().sort(function (a, b) {
@@ -384,6 +445,7 @@
         '<td class="num mono">' + fmtZ(a.volume_z_score) + '</td>' +
         '<td class="num mono">' + fmtTurnover(a.avg_daily_turnover) + '</td>' +
         '<td class="num">' + edgeScoreCell(a.edge_score) + '</td>' +
+        '<td>' + statusCell(a) + '</td>' +
       '</tr>';
     }).join("");
   }
@@ -424,12 +486,12 @@
 
   function boot() {
     if (!window.claude || typeof window.claude.use !== "function") {
-      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="10" class="empty">此檢視環境不支援即時資料</td></tr>';
+      document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="11" class="empty">此檢視環境不支援即時資料</td></tr>';
       return;
     }
     window.claude.use("db").then(function (db) {
       if (!db) {
-        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="10" class="empty">無法連線資料庫</td></tr>';
+        document.getElementById("anomalyBody").innerHTML = '<tr><td colspan="11" class="empty">無法連線資料庫</td></tr>';
         return;
       }
 
@@ -443,6 +505,7 @@
       db.doc("meta/overview").onSnapshot(function (snap) {
         lastMeta = snap.exists ? snap.data() : null;
         renderStats(lastMeta);
+        renderRegimeBanner(lastMeta);
         rerenderTable(lastMeta);
       });
 

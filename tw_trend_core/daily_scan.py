@@ -40,6 +40,7 @@ from core.factors import (
     load_volume_history,
 )
 from core.quant_engine import ZSCORE_THRESHOLD, compute_latest_zscores, get_anomalies, load_price_history
+from core.regime import apply_regime_policy, compute_market_regime, fetch_taiex_history
 from core.universe import TwStock, load_stock_universe
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -114,6 +115,8 @@ def build_anomaly_payload(anomalies_df, stocks_by_ticker: dict[str, TwStock]) ->
             "volume_z_score": _round_or_none(row.get("volume_z_score"), 3),
             "avg_daily_turnover": _round_or_none(row.get("avg_daily_turnover"), 0),
             "edge_score": _round_or_none(row.get("edge_score"), 1),
+            "buy_eligible": bool(row["buy_eligible"]) if "buy_eligible" in row else True,
+            "short_candidate": bool(row["short_candidate"]) if "short_candidate" in row else False,
         })
     return payload
 
@@ -133,11 +136,21 @@ def main() -> None:
         prices.index[-1].date(), len(latest),
     )
 
+    logger.info("判斷大盤體制（top-down 市場過濾器）...")
+    try:
+        taiex_history = fetch_taiex_history()
+    except Exception:
+        logger.warning("加權指數抓取失敗，體制判別將只依市場寬度進行（保守）。", exc_info=True)
+        taiex_history = None
+    regime = compute_market_regime(latest, taiex_history)
+    logger.info("大盤體制：%s — %s", regime.classification, regime.reason)
+
     anomalies = get_anomalies(latest, threshold=ZSCORE_THRESHOLD)
     filtered_out = 0
     if not anomalies.empty:
         logger.info("計算趨勢制度、產業相對 Z-Score、成交量與流動性因子（僅對 %d 檔異常標的）...", len(anomalies))
         anomalies, filtered_out = enrich_anomalies(anomalies, latest, prices, industry_by_ticker)
+        anomalies = apply_regime_policy(anomalies, regime)
 
     payload = build_anomaly_payload(anomalies, stocks_by_ticker)
 
@@ -151,6 +164,7 @@ def main() -> None:
                 "computed_size": len(latest),
                 "zscore_threshold": ZSCORE_THRESHOLD,
                 "liquidity_filtered_count": filtered_out,
+                "market_regime": regime.to_dict(),
                 "anomalies": payload,
             },
             ensure_ascii=False, indent=2,
@@ -162,7 +176,17 @@ def main() -> None:
     print(f"\n=== 台股全市場掃描完成（耗時 {elapsed:.0f} 秒）===")
     print(f"價格資料日期：{prices.index[-1].date()}")
     print(f"掃描標的數：{len(tickers)}　成功計算：{len(latest)}")
-    print(f"|Z-Score| > {ZSCORE_THRESHOLD} 異常標的數：{len(payload)}（另有 {filtered_out} 檔因流動性不足被排除）\n")
+    print(f"|Z-Score| > {ZSCORE_THRESHOLD} 異常標的數：{len(payload)}（另有 {filtered_out} 檔因流動性不足被排除）")
+    print(f"大盤體制：【{regime.classification}】 {regime.reason}\n")
+
+    if regime.classification == "RISK_OFF":
+        print(
+            "🚫 體制過濾器已啟動：大盤處於系統性風險規避環境。\n"
+            "   下面清單中標示 buy_eligible=false 的標的（原本的超賣做多候選）"
+            "不得建議買進，不論個股層級查到多扎實的再評價證據——\n"
+            "   回測顯示這種環境下即使基本面論述成立，Buy 訊號仍普遍虧損（系統性去槓桿會輾過個股故事）。\n"
+            "   標示 short_candidate=true 的標的（超買標的）請改用放空/賣出角度深入分析，而不是等反彈。\n"
+        )
 
     if not payload:
         print("（本次掃描無異常標的，無需進一步分析。）")
@@ -174,7 +198,9 @@ def main() -> None:
         f"請把上面這段 JSON 複製貼給 Claude Code，或請它直接讀取 {OUTPUT_PATH}，"
         "由它扮演首席策略官挑選其中幾檔進行分析、查詢新聞。"
         "（regime 為 TRENDING_UP/TRENDING_DOWN 的標的代表動能延續訊號，"
-        "不宜套用「等回檔至均值」的均值回歸邏輯；RANGE_BOUND 才是傳統均值回歸的合理場景。）"
+        "不宜套用「等回檔至均值」的均值回歸邏輯；RANGE_BOUND 才是傳統均值回歸的合理場景。"
+        "market_regime 是大盤層級的 top-down 過濾器，跟個股層級的 regime 是兩件事："
+        "RISK_OFF 時，buy_eligible=false 的標的不得建議 Buy，short_candidate=true 的標的應優先研究放空機會。）"
     )
 
 
