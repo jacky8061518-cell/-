@@ -28,3 +28,6 @@ ai_trend_core/data/*.json
 # 與 data/databases/tw/ 下 sector-rotation-research 共用的檔案無關
 tw_trend_core/data/*.parquet
 tw_trend_core/data/*.json
+
+# Strategy Hub 執行輸出
+strategy_hub/data/

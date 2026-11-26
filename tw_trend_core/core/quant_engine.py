@@ -49,30 +49,33 @@ def load_price_history(
     （本專案自己的快取檔案），絕不寫回共用檔案。
     """
     base = pd.DataFrame()
-    if cache_path.exists():
-        base = pd.read_parquet(cache_path)
-        base.index = pd.to_datetime(base.index)
-    elif shared_seed_path.exists():
+    if shared_seed_path.exists():
         seed = pd.read_parquet(shared_seed_path)
         seed.index = pd.to_datetime(seed.index)
         base = seed.reindex(columns=[t for t in tickers if t in seed.columns])
+    if cache_path.exists():
+        # 快取可能只含上次呼叫時要求的部分標的；以種子補齊其餘標的，不能直接取代。
+        cache = pd.read_parquet(cache_path)
+        cache.index = pd.to_datetime(cache.index)
+        base = cache.combine_first(base) if not base.empty else cache
 
-    if base.empty:
+    last_valid = base.reindex(columns=tickers).apply(lambda s: s.last_valid_index()).dropna()
+    if last_valid.empty:
         start = date(2012, 1, 1)
     else:
-        start = (base.index.max() - timedelta(days=REFRESH_BUFFER_DAYS)).date()
+        # 從「最舊的」最後有效日起抓，避免部分標的在快取中有較新資料而遮蔽其他標的的缺口。
+        start = (pd.Timestamp(last_valid.min()) - timedelta(days=REFRESH_BUFFER_DAYS)).date()
 
     fresh = download_adjusted_prices(
         tickers, start, date.today() + timedelta(days=1), min_observations=1,
     )
 
-    combined = pd.concat([base, fresh]).sort_index()
-    combined = combined[~combined.index.duplicated(keep="last")]
-    combined = combined.reindex(columns=tickers).ffill()
+    combined = fresh.combine_first(base) if not fresh.empty else base
+    combined = combined.sort_index()
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    combined.to_parquet(cache_path)
-    return combined
+    combined.to_parquet(cache_path)  # 保留所有欄位，不只本次要求的標的
+    return combined.reindex(columns=tickers).ffill()
 
 
 def compute_latest_zscores(

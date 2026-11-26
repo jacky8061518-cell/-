@@ -87,3 +87,32 @@ def test_compute_latest_zscores_is_vectorized_equivalent_to_per_column_loop():
         window = df[ticker].iloc[-BB_LENGTH:]
         expected_z = (df[ticker].iloc[-1] - window.mean()) / window.std()
         assert latest.loc[ticker, "z_score"] == pytest.approx(expected_z)
+
+
+def test_load_price_history_keeps_seed_history_when_cache_has_only_a_subset(tmp_path, monkeypatch):
+    """快取只含上次要求的部分標的時，其餘標的不得因此遺失種子歷史，也不得把快取縮成子集。"""
+    import core.quant_engine as qe
+
+    idx = pd.date_range("2024-01-01", periods=30, freq="D")
+    seed = pd.DataFrame({"A.TW": range(30), "B.TW": range(100, 130)}, index=idx, dtype=float)
+    seed_path = tmp_path / "seed.parquet"
+    seed.to_parquet(seed_path)
+
+    cache_idx = pd.date_range("2024-01-01", periods=35, freq="D")
+    cache = pd.DataFrame({"A.TW": range(35)}, index=cache_idx, dtype=float)
+    cache_path = tmp_path / "cache.parquet"
+    cache.to_parquet(cache_path)
+
+    captured = {}
+
+    def fake_download(tickers, start, end, min_observations=1):
+        captured["start"] = start
+        return pd.DataFrame()
+
+    monkeypatch.setattr(qe, "download_adjusted_prices", fake_download)
+    result = qe.load_price_history(["A.TW", "B.TW"], cache_path=cache_path, shared_seed_path=seed_path)
+
+    assert result["B.TW"].notna().sum() >= 30
+    # B 的最後有效日較舊，抓取起點應由 B 決定，而不是被 A 較新的快取遮蔽。
+    assert pd.Timestamp(captured["start"]) <= idx[-1]
+    assert set(pd.read_parquet(cache_path).columns) >= {"A.TW", "B.TW"}
